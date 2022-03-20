@@ -24,7 +24,6 @@ using Mat4 = glm::mat4;
 using Vec4 = glm::vec4;
 using Vec3 = glm::vec3;
 
-
 struct TransformCB
 {
     Mat4 ViewPorjectionMatrix;
@@ -766,23 +765,26 @@ void D3D12Renderer::Setup()
     WaitForGPU();
 }
 
-void D3D12Renderer::Render(GLFWwindow* Window, const ViewSettings& view, const SceneSettings& Scene)
+void D3D12Renderer::Update(const ViewSettings& view, const SceneSettings& Scene)
 {
-    Mat4 ProjectionMatrix = glm::perspectiveFov(view.fov, float(1024), float(1024), 1.0f, 1000.0f);
-    const Mat4 ViewRotationMatrix = glm::eulerAngleXY(glm::radians(view.pitch), glm::radians(view.yaw));
-    const Mat4 SceneRotationMatrix = glm::eulerAngleXY(glm::radians(Scene.pitch), glm::radians(Scene.yaw));
-    const Mat4 ViewMatrix = glm::translate(Mat4{ 1.0f }, { 0.0f,0.0f,-view.distance }) * ViewRotationMatrix;
+    mCamera.SetLens(view.fov, float(1024), float(1024), 1.0f, 1000.0f);
+}
 
-    const Vec3 EyePosition = glm::inverse(ViewMatrix)[3];
+void D3D12Renderer::Render(GLFWwindow* Window,const SceneSettings& Scene,const float DeltaTime)
+{
+
+    std::printf("%0.3f %0.3f %0.3f\n", mCamera.GetPosition()[0], mCamera.GetPosition()[1], mCamera.GetPosition()[2]);
+
     const ConstantBufferView& transformCBV = m_TransformCBVs[m_FrameIndex];
     const ConstantBufferView& shadingCBV = m_ShadingCBVs[m_FrameIndex];
 
-    //更新Transform constant
+    const Vec3 EyePosition = glm::inverse(mCamera.GetView())[3];
+        //更新Transform constant
     {
         TransformCB* transformConstants = transformCBV.as<TransformCB>();
-        transformConstants->ViewPorjectionMatrix = ProjectionMatrix * ViewMatrix;
-        transformConstants->SkyProjectionMatrix = ProjectionMatrix * ViewRotationMatrix;
-        transformConstants->SceneRotationMatix = SceneRotationMatrix;
+        transformConstants->ViewPorjectionMatrix = mCamera.GetProj() * mCamera.GetView();
+        transformConstants->SkyProjectionMatrix = mCamera.GetProj() * mCamera.GetRotation();
+        transformConstants->SceneRotationMatix = glm::eulerAngleXY(glm::radians(Scene.pitch), glm::radians(Scene.yaw));
     }
 
     //更新Shading constant

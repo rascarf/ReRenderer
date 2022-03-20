@@ -133,7 +133,8 @@ public:
     GLFWwindow* initialize(int Width, int Height, int MaxSamples) override;
     void ShutDown() override;
     void Setup() override;
-    void Render(GLFWwindow* Window, const ViewSettings& view, const SceneSettings& Scene) override;
+    void Update(const ViewSettings& view, const SceneSettings& Scene) override;
+    void Render(GLFWwindow* Window, const SceneSettings& Scene,const float DeltaTime) override;
 
 
 private:

@@ -10,11 +10,12 @@
 int main()
 {
     Application app;
-   std::unique_ptr<RendererInterface>  D3DBackend = std::make_unique<D3D12Renderer>();
+
     try
     {
-        app.run(D3DBackend);
+        app.run();
     }
+
     catch (std::runtime_error e)
     {
         std::cout << e.what();

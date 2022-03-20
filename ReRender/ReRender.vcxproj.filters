@@ -54,6 +54,12 @@
     <ClCompile Include="..\ThirdParty\stb\src\libstb.c">
       <Filter>源文件\ThirdParty</Filter>
     </ClCompile>
+    <ClCompile Include="TAA.cpp">
+      <Filter>源文件\Core\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>源文件\Core\Render</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -72,6 +78,12 @@
       <Filter>头文件\Core\Render</Filter>
     </ClInclude>
     <ClInclude Include="D3D12Renderer.h">
+      <Filter>头文件\Core\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="TAA.h">
+      <Filter>头文件\Core\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Camera.h">
       <Filter>头文件\Core\Render</Filter>
     </ClInclude>
   </ItemGroup>

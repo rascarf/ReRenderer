@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "D3D12Renderer.h"
 #include "Renderer.h"
 
     enum class InputMode
@@ -17,7 +18,9 @@
         Application();
         ~Application();
 
-        void run(const std::unique_ptr<RendererInterface>& Renderer);
+        inline static std::unique_ptr<RendererInterface>  mRenderer = std::make_unique<D3D12Renderer>();
+
+        void run();
 
     private:
         static void MousePositionCallback(GLFWwindow* Window, double Xpos, double Ypos);
@@ -28,6 +31,9 @@
         GLFWwindow* m_window;
         double m_PrevCursorX;
         double m_PrevCursorY;
+
+        inline static float DeltaTime = 0.0f;
+        inline static float LastTime = 0.0f;
 
         ViewSettings m_ViewSettings;
         SceneSettings m_SceneSettings;
