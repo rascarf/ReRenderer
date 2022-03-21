@@ -5,63 +5,17 @@
 #include <dxgi1_4.h>
 #include <wrl/client.h>
 
+#include "Descriptor.h"
 #include "renderer.h"
+#include "StagingBuffer.h"
+#include "Texture.h"
 #include "utils.h"
 
 using Microsoft::WRL::ComPtr;
 
-struct Descriptor
-{
-    D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle;
-    D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle;
-};
 
-struct DescriptorHeap
-{
-    ComPtr<ID3D12DescriptorHeap> Heap;
-    UINT DescriptorSize;
-    UINT NumDescriptorsInHeap;
-    UINT NumDescriptorsAllocated;
-
-    Descriptor Alloc()
-    {
-        return (*this)[NumDescriptorsAllocated++];
-    }
-
-    Descriptor operator[](UINT Index) const
-    {
-        assert(Index < NumDescriptorsInHeap);
-        return {
-            D3D12_CPU_DESCRIPTOR_HANDLE{Heap->GetCPUDescriptorHandleForHeapStart().ptr + Index * DescriptorSize},
-            D3D12_GPU_DESCRIPTOR_HANDLE{Heap->GetGPUDescriptorHandleForHeapStart().ptr + Index * DescriptorSize }
-        };
-    }
-};
-
-struct DescriptorHeapMark
-{
-    DescriptorHeapMark(DescriptorHeap& InHeap)
-        :Heap(InHeap)
-        ,Mark(Heap.NumDescriptorsAllocated)
-    {}
-
-    ~DescriptorHeapMark()
-    {
-        Heap.NumDescriptorsAllocated = Mark;
-    }
-
-    DescriptorHeap& Heap;
-    const UINT Mark;
-};
 
 //todo change it!
-struct StagingBuffer
-{
-    ComPtr<ID3D12Resource> Buffer;
-    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> Layouts;
-    UINT FirstSubResource;
-    UINT NumSubResource;
-};
 
 struct SwapChainBuffer
 {
@@ -105,6 +59,7 @@ struct FrameBuffer
     UINT Samples;
 };
 
+//里面包含了一个UploadBuffer以及对应的Buffer的View
 struct ConstantBufferView
 {
     UploadBufferRegion Data;
@@ -117,14 +72,6 @@ struct ConstantBufferView
 
 };
 
-struct Texture
-{
-    ComPtr<ID3D12Resource> texture;
-    Descriptor Srv;
-    Descriptor Uav;
-    UINT Width, Height;
-    UINT Levels;
-};
 
 
 class D3D12Renderer final : public RendererInterface
@@ -154,13 +101,6 @@ private:
         int Align
     )const;
 
-    StagingBuffer CreateStagingBuffer(
-        const ComPtr<ID3D12Resource>& Resource,
-        UINT FirstSubresource, 
-        UINT NumSubResources, 
-        const D3D12_SUBRESOURCE_DATA* Data
-    )const;
-
     FrameBuffer CreateFrameBuffer(
         UINT Width,
         UINT Height,
@@ -175,14 +115,12 @@ private:
         DXGI_FORMAT Format
     )const;
 
-    ComPtr<ID3D12RootSignature> CreateRootSignature(
-        D3D12_VERSIONED_ROOT_SIGNATURE_DESC& Desc
-    )const;
-
     ConstantBufferView CreateConstantBufferView(
         const void* Data,
         UINT size
     );
+
+    //会为ConstantBufferView设置一个堆
     template<typename T>
     ConstantBufferView CreateConstantBufferView
     (
@@ -192,39 +130,12 @@ private:
         return CreateConstantBufferView(Data, sizeof(T));
     }
 
-    //Texture
-    Texture CreateTexture(
-        UINT Width, 
-        UINT Height, 
-        UINT Depth, 
-        DXGI_FORMAT Format, 
-        UINT Levels = 0
-    );
-    Texture CreateTexture(
-        const std::shared_ptr<class Image>& Image, DXGI_FORMAT Format, 
-        UINT Levels = 0
-    );
-
-    void GenerateMipmaps(const Texture& texture);
-
-    void CreateTextureSRV(
-        Texture& texture, 
-        D3D12_SRV_DIMENSION Dimension, 
-        UINT MostDetailedMip = 0, 
-        UINT MipLevels = 0
-    );
-
-    void CreateTextureUAV(
-        Texture& texture, 
-        UINT mipSlice
-    );
 
     void ExecuteCommandList(bool Reset = true)const;
     void WaitForGPU()const;
     void PresentFrame();
 
     static ComPtr<IDXGIAdapter1> getAdapter(const ComPtr<IDXGIFactory4>& factory);
-    static ComPtr<ID3DBlob> compileShader(const std::string& filename, const std::string& entryPoint, const std::string& profile);
 
 
     ComPtr<ID3D12Device> m_Device;
@@ -246,13 +157,7 @@ private:
     ConstantBufferView m_TransformCBVs[NumFrames];
     ConstantBufferView m_ShadingCBVs[NumFrames];
 
-    struct
-    {
-        ComPtr<ID3D12RootSignature> RootSignature;
-        ComPtr<ID3D12PipelineState> LinearTexturePipelineState;
-        ComPtr<ID3D12PipelineState> gammaTexturePipelineState;
-        ComPtr<ID3D12PipelineState>ArrayTexturePipelineState;
-    }m_mipmapGeneration;
+    MipMapGeneration m_mipmapGeneration;
 
     MeshBuffer m_PbrModel;
     MeshBuffer m_SkyBox;

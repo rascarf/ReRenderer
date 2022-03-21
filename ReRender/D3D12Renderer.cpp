@@ -18,6 +18,8 @@
 #include <glm/include/glm/gtc/matrix_transform.hpp>
 #include <glm/include/glm/gtx/euler_angles.hpp>
 
+#include "RootSignature.h"
+#include "Shader.h"
 
 
 using Mat4 = glm::mat4;
@@ -267,12 +269,12 @@ void D3D12Renderer::Setup()
 
     //创建Tonemap的根签名和PSO
     {
-        ComPtr<ID3DBlob> ToneMapVs = compileShader(
+        ComPtr<ID3DBlob> ToneMapVs = Shader::compileShader(
             "Shaders/hlsl/tonemap.hlsl",
             "main_vs",
             "vs_5_0");
 
-        ComPtr<ID3DBlob> ToneMapPs = compileShader(
+        ComPtr<ID3DBlob> ToneMapPs = Shader::compileShader(
             "Shaders/hlsl/tonemap.hlsl",
             "main_ps",
             "ps_5_0");
@@ -303,7 +305,7 @@ void D3D12Renderer::Setup()
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS);
 
-        m_ToneMapRootSignature = CreateRootSignature(SignatureDesc);
+        m_ToneMapRootSignature = RootSignature::CreateRootSignature(m_Device,m_RootSignatureVersion,SignatureDesc);
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc = {};
         PsoDesc.pRootSignature = m_ToneMapRootSignature.Get();
@@ -377,12 +379,12 @@ void D3D12Renderer::Setup()
             }
         };
 
-        ComPtr<ID3DBlob> PbrVs = compileShader(
+        ComPtr<ID3DBlob> PbrVs = Shader::compileShader(
             "Shaders/hlsl/pbr.hlsl",
             "main_vs",
             "vs_5_0");
 
-        ComPtr<ID3DBlob> PbrPs = compileShader(
+        ComPtr<ID3DBlob> PbrPs = Shader::compileShader(
             "shaders/hlsl/pbr.hlsl",
             "main_ps",
             "ps_5_0"
@@ -437,7 +439,7 @@ void D3D12Renderer::Setup()
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
         );
 
-        m_PbrRootSignature = CreateRootSignature(SignatureDesc);
+        m_PbrRootSignature = RootSignature::CreateRootSignature(m_Device,m_RootSignatureVersion,SignatureDesc);
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.pRootSignature = m_PbrRootSignature.Get();
@@ -462,20 +464,59 @@ void D3D12Renderer::Setup()
             throw std::runtime_error("Failed to create graphics pipeline state for PBR model");
         }
     }
+    auto Callback = [&]()
+    {
+        ExecuteCommandList();
+        WaitForGPU();
+    };
 
     //加载PBRasset
     {
         m_PbrModel = CreateMeshBuffer(Mesh::FromFile("Meshes/cerberus.fbx"));
-        m_AlbedoTexture = CreateTexture(
+
+        m_AlbedoTexture = Texture::CreateTexture(
+            Callback,
+            m_Device,
+            m_CommandList,
+            m_mipmapGeneration,
+            m_DescHeapCBV_SRV_UAV,
+            m_RootSignatureVersion,
             Image::FromFile("textures/cerberus_A.png"),
             DXGI_FORMAT_R8G8B8A8_UNORM_SRGB);
-        m_NormalTexture = CreateTexture(
+
+
+        m_NormalTexture = Texture::CreateTexture(
+            Callback,
+            m_Device,
+            m_CommandList,
+            m_mipmapGeneration,
+            m_DescHeapCBV_SRV_UAV,
+            m_RootSignatureVersion,
             Image::FromFile("textures/cerberus_N.png"),
             DXGI_FORMAT_R8G8B8A8_UNORM);
-        m_MetalnessTexture = CreateTexture(
+
+        m_MetalnessTexture = Texture::CreateTexture(
+            Callback,
+            m_Device,
+            m_CommandList,
+            m_mipmapGeneration,
+            m_DescHeapCBV_SRV_UAV,
+            m_RootSignatureVersion,
             Image::FromFile("textures/cerberus_M.png"),
             DXGI_FORMAT_R8_UNORM);
-        m_RoughnessTexture = CreateTexture(Image::FromFile("textures/cerberus_R.png", 1), DXGI_FORMAT_R8_UNORM);
+
+
+        m_RoughnessTexture = Texture::CreateTexture(
+            Callback,
+            m_Device,
+            m_CommandList,
+            m_mipmapGeneration,
+            m_DescHeapCBV_SRV_UAV,
+            m_RootSignatureVersion,
+            Image::FromFile("textures/cerberus_R.png", 1), 
+            DXGI_FORMAT_R8_UNORM);
+
+
     }
 
     //创建SkyBox的根签名以及PSO
@@ -490,12 +531,12 @@ void D3D12Renderer::Setup()
                 0 },
         };
 
-        ComPtr<ID3DBlob> SkyboxVS = compileShader(
+        ComPtr<ID3DBlob> SkyboxVS = Shader::compileShader(
             "shaders/hlsl/skybox.hlsl", 
             "main_vs", 
             "vs_5_0");
 
-        ComPtr<ID3DBlob> SkyboxPS = compileShader(
+        ComPtr<ID3DBlob> SkyboxPS = Shader::compileShader(
             "shaders/hlsl/skybox.hlsl", 
             "main_ps", 
             "ps_5_0");
@@ -509,7 +550,7 @@ void D3D12Renderer::Setup()
         rootParameters[1].InitAsDescriptorTable(1, &descriptorRanges[1], D3D12_SHADER_VISIBILITY_PIXEL);
         CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC signatureDesc = {};
         signatureDesc.Init_1_1(2, rootParameters, 1, &DefaultSamplerDesc, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
-        m_SkyBoxRootSignature = CreateRootSignature(signatureDesc);
+        m_SkyBoxRootSignature = RootSignature::CreateRootSignature(m_Device,m_RootSignatureVersion,signatureDesc);
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
         psoDesc.pRootSignature = m_SkyBoxRootSignature.Get();
@@ -554,28 +595,34 @@ void D3D12Renderer::Setup()
             rootParameters[2].InitAsConstants(1, 0);
             CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC signatureDesc;
             signatureDesc.Init_1_1(3, rootParameters, 1, &ComputeSamplerDesc);
-            ComputeRootSignature = CreateRootSignature(signatureDesc);
+            ComputeRootSignature = RootSignature::CreateRootSignature(m_Device,m_RootSignatureVersion,signatureDesc);
         }
 
-        m_EnvTexture = CreateTexture(1024, 1024, 6, DXGI_FORMAT_R16G16B16A16_FLOAT);
+        m_EnvTexture = Texture::CreateTexture(m_Device,m_DescHeapCBV_SRV_UAV,1024, 1024, 6, DXGI_FORMAT_R16G16B16A16_FLOAT);
         {
-            //Todo mark
             DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
 
-            Texture envTextureUnfiltered = CreateTexture(1024, 1024, 6, DXGI_FORMAT_R16G16B16A16_FLOAT);
-            CreateTextureUAV(envTextureUnfiltered, 0);
+            Texture envTextureUnfiltered =Texture::CreateTexture(m_Device,m_DescHeapCBV_SRV_UAV,1024, 1024, 6, DXGI_FORMAT_R16G16B16A16_FLOAT);
+
+            Texture::CreateTextureUAV(m_Device,m_DescHeapCBV_SRV_UAV,envTextureUnfiltered, 0);
 
             //转换Equirectangular为Cubemap
             {
                 DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
 
-                Texture envTextureEquirect = CreateTexture(
+                Texture envTextureEquirect = Texture::CreateTexture(
+                    Callback,
+                    m_Device,
+                    m_CommandList,
+                    m_mipmapGeneration,
+                    m_DescHeapCBV_SRV_UAV,
+                    m_RootSignatureVersion,
                     Image::FromFile("environment1.hdr"),
                     DXGI_FORMAT_R32G32B32A32_FLOAT,
                     1);
 
                 ComPtr<ID3D12PipelineState> pipelineState;
-                ComPtr<ID3DBlob> equirectToCubemapShader = compileShader(
+                ComPtr<ID3DBlob> equirectToCubemapShader = Shader::compileShader(
                     "shaders/hlsl/equirect2cube.hlsl",
                     "main",
                     "cs_5_0");
@@ -600,7 +647,7 @@ void D3D12Renderer::Setup()
                 m_CommandList->Dispatch(m_EnvTexture.Width / 32, m_EnvTexture.Height / 32, 6);
                 m_CommandList->ResourceBarrier(1, &UA2Common);
 
-                GenerateMipmaps(envTextureUnfiltered);
+                Texture::GenerateMipmaps(Callback,m_Device,m_CommandList,m_mipmapGeneration,m_DescHeapCBV_SRV_UAV, m_RootSignatureVersion,envTextureUnfiltered);
             }
 
             //计算Pre-filtered Specular
@@ -608,7 +655,7 @@ void D3D12Renderer::Setup()
                 DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
 
                 ComPtr<ID3D12PipelineState> PipelineStae;
-                ComPtr<ID3DBlob> spmapShader = compileShader(
+                ComPtr<ID3DBlob> spmapShader = Shader::compileShader(
                     "shaders/hlsl/spmap.hlsl",
                     "main",
                     "cs_5_0");
@@ -656,7 +703,7 @@ void D3D12Renderer::Setup()
                     const UINT numGroups = std::max<UINT>(1, size / 32);
                     const float spmapRoughness = level * deltaRoughness;
 
-                    CreateTextureUAV(m_EnvTexture, level);
+                    Texture::CreateTextureUAV(m_Device,m_DescHeapCBV_SRV_UAV,m_EnvTexture, level);
 
                     m_CommandList->SetComputeRootDescriptorTable(1, m_EnvTexture.Uav.GpuHandle);
                     m_CommandList->SetComputeRoot32BitConstants(2, 1, &spmapRoughness, 0);
@@ -673,13 +720,13 @@ void D3D12Renderer::Setup()
         }
 
         //计算Irradiance cubemap
-        m_IrMapTexture = CreateTexture(32, 32, 6, DXGI_FORMAT_R16G16B16A16_FLOAT, 1);
+        m_IrMapTexture = Texture::CreateTexture(m_Device,m_DescHeapCBV_SRV_UAV,32, 32, 6, DXGI_FORMAT_R16G16B16A16_FLOAT, 1);
         {
             DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
-            CreateTextureUAV(m_IrMapTexture, 0);
+            Texture::CreateTextureUAV(m_Device, m_DescHeapCBV_SRV_UAV, m_IrMapTexture, 0);
 
             ComPtr<ID3D12PipelineState> PipelineState;
-            ComPtr<ID3DBlob> IrmapShader = compileShader(
+            ComPtr<ID3DBlob> IrmapShader = Shader::compileShader(
                 "Shaders/hlsl/irmap.hlsl",
                 "main",
                 "cs_5_0"
@@ -712,13 +759,13 @@ void D3D12Renderer::Setup()
         }
 
         // 计算 Cook-Torrance BRDF 2D LUT for split-sum approximation.
-        m_spBRDF_LUT = CreateTexture(256, 256, 1, DXGI_FORMAT_R16G16_FLOAT, 1);
+        m_spBRDF_LUT = Texture::CreateTexture(m_Device, m_DescHeapCBV_SRV_UAV, 256, 256, 1, DXGI_FORMAT_R16G16_FLOAT, 1);
         {
             DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
-            CreateTextureUAV(m_spBRDF_LUT, 0);
+            Texture::CreateTextureUAV(m_Device, m_DescHeapCBV_SRV_UAV, m_spBRDF_LUT, 0);
 
             ComPtr<ID3D12PipelineState> pipelineState;
-            ComPtr<ID3DBlob> spBRDFShader = compileShader("shaders/hlsl/spbrdf.hlsl", "main", "cs_5_0");
+            ComPtr<ID3DBlob> spBRDFShader = Shader::compileShader("shaders/hlsl/spbrdf.hlsl", "main", "cs_5_0");
 
             D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
             psoDesc.pRootSignature = ComputeRootSignature.Get();
@@ -962,12 +1009,12 @@ MeshBuffer D3D12Renderer::CreateMeshBuffer(const std::shared_ptr<Mesh> mesh) con
     StagingBuffer VertexStagingBuffer;
     {
         const D3D12_SUBRESOURCE_DATA Data = { mesh->Vertices().data() };
-        VertexStagingBuffer = CreateStagingBuffer(Buffer.VertexBuffer, 0, 1, &Data);
+        VertexStagingBuffer = StagingBuffer::CreateStagingBuffer(m_Device,Buffer.VertexBuffer, 0, 1, &Data);
     }
     StagingBuffer IndexStagingBuffer;
     {
         const D3D12_SUBRESOURCE_DATA Data = { mesh->Faces().data() };
-        IndexStagingBuffer = CreateStagingBuffer(Buffer.IndexBuffer, 0, 1, &Data);
+        IndexStagingBuffer = StagingBuffer::CreateStagingBuffer(m_Device,Buffer.IndexBuffer, 0, 1, &Data);
     }
 
     //上传到GPU
@@ -1039,83 +1086,6 @@ UploadBufferRegion D3D12Renderer::AllocFromUploadBuffer(UploadBuffer& Buffer, UI
     Buffer.Cursor += AlignedSize;
 
     return Region;
-}
-
-StagingBuffer D3D12Renderer::CreateStagingBuffer(const ComPtr<ID3D12Resource>& Resource, UINT FirstSubresource,UINT NumSubResources, const D3D12_SUBRESOURCE_DATA* Data) const
-{
-    StagingBuffer stagingBuffer;
-    stagingBuffer.FirstSubResource = FirstSubresource;
-    stagingBuffer.NumSubResource = NumSubResources;
-    stagingBuffer.Layouts.resize(NumSubResources);
-
-    const D3D12_RESOURCE_DESC ResourceDesc = Resource->GetDesc();
-
-    UINT64 NumBytesTotal;
-    std::vector<UINT> numRows{ NumSubResources };
-    std::vector<UINT64> rowBytes{ NumSubResources };
-    m_Device->GetCopyableFootprints(
-        &ResourceDesc,
-        FirstSubresource,
-        NumSubResources,
-        0,
-        stagingBuffer.Layouts.data(),
-        numRows.data(),
-        rowBytes.data(),
-        &NumBytesTotal);
-
-
-    auto UploadType = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(NumBytesTotal);
-    if (FAILED(m_Device->CreateCommittedResource(
-        &UploadType,
-        D3D12_HEAP_FLAG_NONE,
-        &BufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&stagingBuffer.Buffer)
-    )))
-    {
-        throw std::runtime_error("Failed to create GPU staging buffer");
-    }
-
-    if(Data)
-    {
-        assert(ResourceDesc.Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE3D);
-
-        auto Range = CD3DX12_RANGE{ 0,0 };
-        void* BufferMemory;
-        if(FAILED(stagingBuffer.Buffer->Map(0,&Range,&BufferMemory)))
-        {
-            throw std::runtime_error("Failed to map GPU staging buffer to host address space");
-        }
-
-        for(UINT subresource = 0;subresource < NumSubResources;++subresource)
-        {
-            uint8_t* subresourceMemory = reinterpret_cast<uint8_t*>(BufferMemory) + stagingBuffer.Layouts[subresource].Offset;
-
-            //线性的话就一把梭
-            if(ResourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
-            {
-                std::memcpy(subresourceMemory, Data->pData, NumBytesTotal);
-            }
-            else
-            {
-                //Texture就需要逐行复制
-                for (UINT row = 0; row < numRows[subresource]; ++row) 
-                {
-                    const uint8_t* srcRowPtr = reinterpret_cast<const uint8_t*>(Data[subresource].pData) + row * Data[subresource].RowPitch;
-
-                    uint8_t* destRowPtr = subresourceMemory + row * stagingBuffer.Layouts[subresource].Footprint.RowPitch;
-
-                    std::memcpy(destRowPtr, srcRowPtr, rowBytes[subresource]);
-                }
-            }
-        }
-
-        stagingBuffer.Buffer->Unmap(0, nullptr);
-    }
-
-    return stagingBuffer;
 }
 
 FrameBuffer D3D12Renderer::CreateFrameBuffer(UINT Width, UINT Height, UINT Samples, DXGI_FORMAT ColorFormat,DXGI_FORMAT DepthStencilFormat)
@@ -1233,46 +1203,6 @@ void D3D12Renderer::ResolveFrameBuffer(const FrameBuffer& SourceBuffer, const Fr
 
 }
 
-ComPtr<ID3D12RootSignature> D3D12Renderer::CreateRootSignature(D3D12_VERSIONED_ROOT_SIGNATURE_DESC& Desc) const
-{
-    const D3D12_ROOT_SIGNATURE_FLAGS StandardFlags =
-        D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-        D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
-        D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS;
-
-    switch (Desc.Version)
-    {
-    case D3D_ROOT_SIGNATURE_VERSION_1_0:
-        Desc.Desc_1_0.Flags |= StandardFlags;
-        break;
-    case D3D_ROOT_SIGNATURE_VERSION_1_1:
-        Desc.Desc_1_1.Flags |= StandardFlags;
-        break;
-    }
-
-    ComPtr<ID3D12RootSignature> RootSignature;
-    ComPtr<ID3DBlob> SignatureBlob, ErrorBlob;
-
-    if (FAILED(D3DX12SerializeVersionedRootSignature(
-        &Desc, 
-        m_RootSignatureVersion, 
-        &SignatureBlob, 
-        &ErrorBlob)))
-    {
-        throw std::runtime_error("Failed to serialize root signature");
-    }
-
-    if (FAILED(m_Device->CreateRootSignature(
-        0, 
-        SignatureBlob->GetBufferPointer(), 
-        SignatureBlob->GetBufferSize(), 
-        IID_PPV_ARGS(&RootSignature)))) 
-    {
-        throw std::runtime_error("Failed to create root signature");
-    }
-    return RootSignature;
-}
-
 ConstantBufferView D3D12Renderer::CreateConstantBufferView(const void* Data, UINT size)
 {
     ConstantBufferView View;
@@ -1289,308 +1219,6 @@ ConstantBufferView D3D12Renderer::CreateConstantBufferView(const void* Data, UIN
     m_Device->CreateConstantBufferView(&Desc, View.Cbv.CpuHandle);
 
     return View;
-}
-
-Texture D3D12Renderer::CreateTexture(UINT Width, UINT Height, UINT Depth, DXGI_FORMAT Format, UINT Levels)
-{
-    assert(Depth == 1 || Depth == 6);
-
-    Texture texture;
-    texture.Width = Width;
-    texture.Height = Height;
-    texture.Levels = (Levels > 0) ? Levels:Utils::numMipmapLevels(Width, Height);
-
-    D3D12_RESOURCE_DESC Desc = {};
-    Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    Desc.Width = Width;
-    Desc.Height = Height;
-    Desc.DepthOrArraySize = Depth;
-    Desc.MipLevels = Levels;
-    Desc.Format = Format;
-    Desc.SampleDesc.Count = 1;
-    Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-
-    auto DefaultType = CD3DX12_HEAP_PROPERTIES{ D3D12_HEAP_TYPE_DEFAULT };
-    if (FAILED(m_Device->CreateCommittedResource(
-        &DefaultType,
-        D3D12_HEAP_FLAG_NONE,
-        &Desc,
-        D3D12_RESOURCE_STATE_COMMON,
-        nullptr,
-        IID_PPV_ARGS(&texture.texture))))
-    {
-        throw std::runtime_error("Failed to create 2D texture");
-    }
-
-    D3D12_SRV_DIMENSION SrvDim;
-    switch (Depth)
-    {
-    case 1: SrvDim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
-    case 6:SrvDim = D3D12_SRV_DIMENSION_TEXTURECUBE; break;
-    default:SrvDim = D3D12_SRV_DIMENSION_TEXTURE2DARRAY; break;
-    }
-    CreateTextureSRV(texture, SrvDim);
-
-    return texture;
-}
-
-Texture D3D12Renderer::CreateTexture(const std::shared_ptr<Image>& Image, DXGI_FORMAT Format, UINT Levels)
-{
-    Texture texture = CreateTexture(Image->Width(), Image->Height(), 1, Format, Levels);
-    StagingBuffer TextureStagingBuffer;
-    {
-        const D3D12_SUBRESOURCE_DATA Data{ Image->Pixels<void>(),Image->Pitch() };
-        TextureStagingBuffer = CreateStagingBuffer(texture.texture, 0, 1, &Data);
-    }
-
-    {
-        const CD3DX12_TEXTURE_COPY_LOCATION DestCopyLocation{ texture.texture.Get(),0 };
-        const CD3DX12_TEXTURE_COPY_LOCATION SrcCopyLocation{ TextureStagingBuffer.Buffer.Get(),TextureStagingBuffer.Layouts[0] };
-
-        auto Common2Dest = CD3DX12_RESOURCE_BARRIER::Transition(texture.texture.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST, 0);
-
-        auto Dest2Common = CD3DX12_RESOURCE_BARRIER::Transition(texture.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON, 0);
-
-        m_CommandList->ResourceBarrier(1, &Common2Dest);
-        m_CommandList->CopyTextureRegion(&DestCopyLocation, 0, 0, 0, &SrcCopyLocation, nullptr);
-        m_CommandList->ResourceBarrier(1, &Dest2Common);
-    }
-
-    if(texture.Levels > 1 && texture.Width == texture.Height && Utils::IsPowerOfTwo(texture.Width))
-    {
-        GenerateMipmaps(texture);
-    }
-    else {
-        // Only execute & wait if not generating mipmaps (so that we don't wait redundantly).
-        ExecuteCommandList();
-        WaitForGPU();
-    }
-
-    return texture;
-}
-
-void D3D12Renderer::GenerateMipmaps(const Texture& texture)
-{
-    assert(texture.Width == texture.Height);
-    assert(Utils::IsPowerOfTwo(texture.Width));
-
-    if(!m_mipmapGeneration.RootSignature)
-    {
-        const CD3DX12_DESCRIPTOR_RANGE1 descriptorRanges[] = {
-            {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE},
-            {D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE},
-        };
-        CD3DX12_ROOT_PARAMETER1 rootParameters[2];
-        rootParameters[0].InitAsDescriptorTable(1, &descriptorRanges[0]);
-        rootParameters[1].InitAsDescriptorTable(1, &descriptorRanges[1]);
-
-        CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc;
-        rootSignatureDesc.Init_1_1(2, rootParameters);
-        m_mipmapGeneration.RootSignature = CreateRootSignature(rootSignatureDesc);
-    }
-
-    ID3D12PipelineState* pipelineState = nullptr;
-
-    const D3D12_RESOURCE_DESC desc = texture.texture->GetDesc();
-    if (desc.DepthOrArraySize == 1 && desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) {
-        if (!m_mipmapGeneration.gammaTexturePipelineState) 
-        {
-            ComPtr<ID3DBlob> computeShader = compileShader(
-                "shaders/hlsl/downsample.hlsl", 
-                "downsample_gamma", 
-                "cs_5_0");
-
-            D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-            psoDesc.pRootSignature = m_mipmapGeneration.RootSignature.Get();
-            psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
-
-            if (FAILED(m_Device->CreateComputePipelineState(
-                &psoDesc, 
-                IID_PPV_ARGS(&m_mipmapGeneration.gammaTexturePipelineState)))) 
-            {
-                throw std::runtime_error("Failed to create compute pipeline state (gamma correct downsample filter)");
-            }
-        }
-        pipelineState = m_mipmapGeneration.gammaTexturePipelineState.Get();
-    }
-    else if (desc.DepthOrArraySize > 1 && desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) 
-    {
-        if (!m_mipmapGeneration.ArrayTexturePipelineState) 
-        {
-            ComPtr<ID3DBlob> computeShader = compileShader(
-                "shaders/hlsl/downsample_array.hlsl", 
-                "downsample_linear", 
-                "cs_5_0");
-            D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-            psoDesc.pRootSignature = m_mipmapGeneration.RootSignature.Get();
-            psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
-            if (FAILED(m_Device->CreateComputePipelineState(
-                &psoDesc, 
-                IID_PPV_ARGS(&m_mipmapGeneration.ArrayTexturePipelineState)))) 
-            {
-                throw std::runtime_error("Failed to create compute pipeline state (array downsample filter)");
-            }
-        }
-        pipelineState = m_mipmapGeneration.ArrayTexturePipelineState.Get();
-    }
-    else {
-        assert(desc.DepthOrArraySize == 1);
-        if (!m_mipmapGeneration.LinearTexturePipelineState)
-        {
-            ComPtr<ID3DBlob> computeShader = compileShader(
-                "shaders/hlsl/downsample.hlsl", 
-                "downsample_linear", 
-                "cs_5_0");
-            D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
-            psoDesc.pRootSignature = m_mipmapGeneration.RootSignature.Get();
-            psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShader.Get());
-            if (FAILED(m_Device->CreateComputePipelineState(
-                &psoDesc, 
-                IID_PPV_ARGS(&m_mipmapGeneration.LinearTexturePipelineState)))) 
-            {
-                throw std::runtime_error("Failed to create compute pipeline state (linear downsample filter)");
-            }
-        }
-        pipelineState = m_mipmapGeneration.LinearTexturePipelineState.Get();
-    }
-
-    DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
-
-    Texture linearTexture = texture;
-    if (desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) 
-    {
-        pipelineState = m_mipmapGeneration.gammaTexturePipelineState.Get();
-        linearTexture = CreateTexture(
-            texture.Width, 
-            texture.Height, 
-            1, 
-            DXGI_FORMAT_R8G8B8A8_UNORM, 
-            texture.Levels);
-
-        auto Common2Dest = CD3DX12_RESOURCE_BARRIER::Transition(linearTexture.texture.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-        auto Dest2Common = CD3DX12_RESOURCE_BARRIER::Transition(linearTexture.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
-
-        m_CommandList->ResourceBarrier(1, &Common2Dest);
-        m_CommandList->CopyResource(linearTexture.texture.Get(), texture.texture.Get());
-        m_CommandList->ResourceBarrier(1, &Dest2Common);
-    }
-
-    ID3D12DescriptorHeap* descriptorHeaps[] = {
-        m_DescHeapCBV_SRV_UAV.Heap.Get()
-    };
-
-    m_CommandList->SetComputeRootSignature(m_mipmapGeneration.RootSignature.Get());
-    m_CommandList->SetDescriptorHeaps(1, descriptorHeaps);
-    m_CommandList->SetPipelineState(pipelineState);
-
-    std::vector<CD3DX12_RESOURCE_BARRIER> preDispatchBarriers{ desc.DepthOrArraySize };
-    std::vector<CD3DX12_RESOURCE_BARRIER> postDispatchBarriers{ desc.DepthOrArraySize };
-    for (UINT level = 1, levelWidth = texture.Width / 2, levelHeight = texture.Height / 2; level < texture.Levels; ++level, levelWidth /= 2, levelHeight /= 2) 
-    {
-        CreateTextureSRV(
-            linearTexture, 
-            desc.DepthOrArraySize > 1 ? D3D12_SRV_DIMENSION_TEXTURE2DARRAY : D3D12_SRV_DIMENSION_TEXTURE2D, 
-            level - 1, 
-            1);
-
-        CreateTextureUAV(linearTexture, level);
-
-        for (UINT arraySlice = 0; arraySlice < desc.DepthOrArraySize; ++arraySlice) 
-        {
-            const UINT subresourceIndex = D3D12CalcSubresource(
-                level, 
-                arraySlice, 
-                0, 
-                texture.Levels, 
-                desc.DepthOrArraySize);
-
-            preDispatchBarriers[arraySlice] = CD3DX12_RESOURCE_BARRIER::Transition(linearTexture.texture.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, subresourceIndex);
-
-            postDispatchBarriers[arraySlice] = CD3DX12_RESOURCE_BARRIER::Transition(linearTexture.texture.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON, subresourceIndex);
-        }
-
-        m_CommandList->ResourceBarrier(desc.DepthOrArraySize, preDispatchBarriers.data());
-        m_CommandList->SetComputeRootDescriptorTable(0, linearTexture.Srv.GpuHandle);
-        m_CommandList->SetComputeRootDescriptorTable(1, linearTexture.Uav.GpuHandle);
-        m_CommandList->Dispatch(glm::max(UINT(1), levelWidth / 8), glm::max(UINT(1), levelHeight / 8), desc.DepthOrArraySize);
-        m_CommandList->ResourceBarrier(desc.DepthOrArraySize, postDispatchBarriers.data());
-    }
-
-    auto Non2Common = CD3DX12_RESOURCE_BARRIER::Transition(texture.texture.Get(), D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COMMON);
-
-    auto Source2Dest = CD3DX12_RESOURCE_BARRIER::Transition(texture.texture.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-
-    auto Dest2Source = CD3DX12_RESOURCE_BARRIER::Transition(texture.texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
-
-
-    if (texture.texture == linearTexture.texture) {
-        m_CommandList->ResourceBarrier(1, &Non2Common);
-    }
-    else {
-        m_CommandList->ResourceBarrier(1, &Source2Dest);
-        m_CommandList->CopyResource(texture.texture.Get(), linearTexture.texture.Get());
-        m_CommandList->ResourceBarrier(1, &Dest2Source);
-    }
-
-    ExecuteCommandList();
-    WaitForGPU();
-}
-
-void D3D12Renderer::CreateTextureSRV(Texture& texture, D3D12_SRV_DIMENSION Dimension, UINT MostDetailedMip,UINT MipLevels)
-{
-    const D3D12_RESOURCE_DESC Desc = texture.texture->GetDesc();
-    const UINT EffectiveMipLevels = (MipLevels > 0) ? MipLevels : (Desc.MipLevels - MostDetailedMip);
-
-    assert(!(Desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE));
-    texture.Srv = m_DescHeapCBV_SRV_UAV.Alloc();
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = Desc.Format;
-    srvDesc.ViewDimension = Dimension;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    switch (Dimension)
-    {
-    case D3D12_SRV_DIMENSION_TEXTURE2D:
-        srvDesc.Texture2D.MostDetailedMip = MostDetailedMip;
-        srvDesc.Texture2D.MipLevels = EffectiveMipLevels;
-        break;
-    case D3D12_SRV_DIMENSION_TEXTURE2DARRAY:
-        srvDesc.Texture2DArray.MostDetailedMip = MostDetailedMip;
-        srvDesc.Texture2DArray.MipLevels = EffectiveMipLevels;
-        srvDesc.Texture2DArray.FirstArraySlice = 0;
-        srvDesc.Texture2DArray.ArraySize = Desc.DepthOrArraySize;
-        break;
-    case D3D12_SRV_DIMENSION_TEXTURECUBE:
-        assert(Desc.DepthOrArraySize == 6);
-        srvDesc.TextureCube.MostDetailedMip = MostDetailedMip;
-        srvDesc.TextureCube.MipLevels = EffectiveMipLevels;
-        break;
-    default:
-        assert(0);
-    }
-    m_Device->CreateShaderResourceView(texture.texture.Get(), &srvDesc, texture.Srv.CpuHandle);
-}
-
-void D3D12Renderer::CreateTextureUAV(Texture& texture, UINT mipSlice)
-{
-    const D3D12_RESOURCE_DESC desc = texture.texture->GetDesc();
-    assert(desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
-    texture.Uav = m_DescHeapCBV_SRV_UAV.Alloc();
-
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-    uavDesc.Format = desc.Format;
-    if (desc.DepthOrArraySize > 1) {
-        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
-        uavDesc.Texture2DArray.MipSlice = mipSlice;
-        uavDesc.Texture2DArray.FirstArraySlice = 0;
-        uavDesc.Texture2DArray.ArraySize = desc.DepthOrArraySize;
-    }
-    else {
-        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-        uavDesc.Texture2D.MipSlice = mipSlice;
-    }
-    m_Device->CreateUnorderedAccessView(texture.texture.Get(), nullptr, &uavDesc, texture.Uav.CpuHandle);
 }
 
 void D3D12Renderer::ExecuteCommandList(bool Reset) const
@@ -1651,39 +1279,6 @@ ComPtr<IDXGIAdapter1> D3D12Renderer::getAdapter(const ComPtr<IDXGIFactory4>& fac
     return nullptr;
 }
 
-ComPtr<ID3DBlob> D3D12Renderer::compileShader(const std::string& filename, const std::string& entryPoint,const std::string& profile)
-{
-    UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if  _DEBUG
-    flags |= D3DCOMPILE_DEBUG;
-    flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
-
-    ComPtr<ID3DBlob> Shader;
-    ComPtr<ID3DBlob> ErrorBlob;
-
-    std::printf("Compiling HLSL shader: %s [%s]\n", filename.c_str(), entryPoint.c_str());
-
-    if (FAILED(D3DCompileFromFile(
-        Utils::convertToUTF16(filename).c_str(), 
-        nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, 
-        entryPoint.c_str(), 
-        profile.c_str(), 
-        flags, 
-        0, 
-        &Shader, 
-        &ErrorBlob))) 
-    {
-        std::string ErrorMsg = "Shader compilation failed: " + filename;
-        if (ErrorBlob) 
-        {
-            ErrorMsg += std::string("\n") + static_cast<const char*>(ErrorBlob->GetBufferPointer());
-        }
-
-        throw std::runtime_error(ErrorMsg);
-    }
-    return Shader;
-}
 
 
 
