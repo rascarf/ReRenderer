@@ -489,7 +489,7 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
 
     //加载PBRasset
     {
-        m_PbrModel = CreateMeshBuffer(Mesh::FromFile("Meshes/cerberus.fbx"));
+        m_PbrModel = MeshBuffer::CreateMeshBuffer(Callback,m_CommandList,m_Device,Mesh::FromFile("Meshes/cerberus.fbx"));
 
         m_AlbedoTexture = Texture::CreateTexture(
             Callback,
@@ -589,7 +589,7 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
     }
 
     //加载天空盒
-    m_SkyBox = CreateMeshBuffer(Mesh::FromFile("meshes/skybox.obj"));
+    m_SkyBox = MeshBuffer::CreateMeshBuffer(Callback, m_CommandList, m_Device, Mesh::FromFile("meshes/skybox.obj"));
 
     //加载并且预先计算环境
     {
@@ -1028,87 +1028,6 @@ void D3D12Renderer::SetLight()
     printf("Set Light[0] Direction %.3f %.3f %.3f \n", m_Scene.Lights[0].Direction[0], m_Scene.Lights[0].Direction[1], m_Scene.Lights[0].Direction[2]);
 
 }
-
-MeshBuffer D3D12Renderer::CreateMeshBuffer(const std::shared_ptr<Mesh> mesh) const
-{
-    MeshBuffer Buffer;
-    Buffer.NumElements = static_cast<UINT>(mesh->Faces().size() * 3);
-
-    const size_t VertexDataSize = mesh->Vertices().size() * sizeof(Mesh::Vertex);
-    const size_t IndexDataSize = mesh->Faces().size() * sizeof(Mesh::Face);
-
-    //创建GPU端资源
-    auto DefaultType = CD3DX12_HEAP_PROPERTIES{ D3D12_HEAP_TYPE_DEFAULT };
-    auto ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(VertexDataSize);
-    if (FAILED(m_Device->CreateCommittedResource(
-        &DefaultType,
-        D3D12_HEAP_FLAG_NONE,
-        &ResourceDesc,
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        nullptr,
-        IID_PPV_ARGS(&Buffer.VertexBuffer)
-    )))
-    {
-        throw std::runtime_error("Failed to create vertex buffer");
-    }
-
-    Buffer.Vbv.BufferLocation = Buffer.VertexBuffer->GetGPUVirtualAddress();
-    Buffer.Vbv.SizeInBytes = static_cast<UINT>(VertexDataSize);
-    Buffer.Vbv.StrideInBytes = sizeof(Mesh::Vertex);
-
-    auto IndexDesc = CD3DX12_RESOURCE_DESC::Buffer(IndexDataSize);
-    if (FAILED(m_Device->CreateCommittedResource(
-        &DefaultType,
-        D3D12_HEAP_FLAG_NONE,
-        &IndexDesc,
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        nullptr,
-        IID_PPV_ARGS(&Buffer.IndexBuffer)
-    )))
-    {
-        throw std::runtime_error("Failed to create index buffer");
-    }
-    Buffer.Ibv.BufferLocation = Buffer.IndexBuffer->GetGPUVirtualAddress();
-    Buffer.Ibv.SizeInBytes = static_cast<UINT>(IndexDataSize);
-    Buffer.Ibv.Format = DXGI_FORMAT_R32_UINT;
-
-    //创建一个临时缓冲区
-    StagingBuffer VertexStagingBuffer;
-    {
-        const D3D12_SUBRESOURCE_DATA Data = { mesh->Vertices().data() };
-        VertexStagingBuffer = StagingBuffer::CreateStagingBuffer(m_Device,Buffer.VertexBuffer, 0, 1, &Data);
-    }
-    StagingBuffer IndexStagingBuffer;
-    {
-        const D3D12_SUBRESOURCE_DATA Data = { mesh->Faces().data() };
-        IndexStagingBuffer = StagingBuffer::CreateStagingBuffer(m_Device,Buffer.IndexBuffer, 0, 1, &Data);
-    }
-
-    //上传到GPU
-    m_CommandList->CopyResource(Buffer.VertexBuffer.Get(), VertexStagingBuffer.Buffer.Get());
-    m_CommandList->CopyResource(Buffer.IndexBuffer.Get(), IndexStagingBuffer.Buffer.Get());
-
-    const D3D12_RESOURCE_BARRIER Barriers[] =
-    {
-        CD3DX12_RESOURCE_BARRIER::Transition(
-        Buffer.VertexBuffer.Get(),
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
-
-        CD3DX12_RESOURCE_BARRIER::Transition(
-            Buffer.IndexBuffer.Get(),
-            D3D12_RESOURCE_STATE_COPY_DEST,
-            D3D12_RESOURCE_STATE_INDEX_BUFFER
-        )
-    };
-
-    m_CommandList->ResourceBarrier(2, Barriers);
-    ExecuteCommandList();
-    WaitForGPU();
-
-    return Buffer;
-}
-
 
 FrameBuffer D3D12Renderer::CreateFrameBuffer(UINT Width, UINT Height, UINT Samples, DXGI_FORMAT ColorFormat,DXGI_FORMAT DepthStencilFormat)
 {

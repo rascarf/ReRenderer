@@ -148,10 +148,13 @@
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="D3D12Renderer.cpp" />
+    <ClCompile Include="Debugger.cpp" />
     <ClCompile Include="Descriptor.cpp" />
+    <ClCompile Include="GeometryGenerator.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
+    <ClCompile Include="MeshBuffer.cpp" />
     <ClCompile Include="RootSignature.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShadowMap.cpp" />
@@ -165,9 +168,12 @@
     <ClInclude Include="Application.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="D3D12Renderer.h" />
+    <ClInclude Include="Debugger.h" />
     <ClInclude Include="Descriptor.h" />
+    <ClInclude Include="GeometryGenerator.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="Mesh.h" />
+    <ClInclude Include="MeshBuffer.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RootSignature.h" />
     <ClInclude Include="Shader.h" />

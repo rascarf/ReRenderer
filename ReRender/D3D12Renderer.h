@@ -6,12 +6,14 @@
 #include <wrl/client.h>
 
 #include "Descriptor.h"
+#include "MeshBuffer.h"
 #include "renderer.h"
 #include "ShadowMap.h"
 #include "StagingBuffer.h"
 #include "Texture.h"
 #include "UploadBuffer.h"
 #include "utils.h"
+
 
 using Microsoft::WRL::ComPtr;
 
@@ -21,14 +23,6 @@ struct SwapChainBuffer
     Descriptor Rtv;
 };
 
-struct MeshBuffer
-{
-    ComPtr<ID3D12Resource> VertexBuffer;
-    ComPtr<ID3D12Resource> IndexBuffer;
-    D3D12_VERTEX_BUFFER_VIEW Vbv;
-    D3D12_INDEX_BUFFER_VIEW Ibv;
-    UINT NumElements;
-};
 
 struct FrameBuffer
 {
@@ -55,12 +49,6 @@ public:
 
 
 private:
-
-    MeshBuffer CreateMeshBuffer(
-        const std::shared_ptr<class Mesh>mesh
-    )const;
-
-
     FrameBuffer CreateFrameBuffer(
         UINT Width,
         UINT Height,

@@ -40,6 +40,12 @@
     <Filter Include="源文件\Core\Resource">
       <UniqueIdentifier>{bbe0b2a8-f836-4e02-9d1d-2f5a24723960}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\Misc">
+      <UniqueIdentifier>{8bda396c-96a7-4802-9236-0b7c936a440b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\Misc">
+      <UniqueIdentifier>{d050a485-d2af-4832-b351-e74c129772f5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -52,9 +58,6 @@
       <Filter>源文件\Core</Filter>
     </ClCompile>
     <ClCompile Include="Image.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Utils.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="D3D12Renderer.cpp">
@@ -90,6 +93,18 @@
     <ClCompile Include="TAA.cpp">
       <Filter>源文件\Effect</Filter>
     </ClCompile>
+    <ClCompile Include="Utils.cpp">
+      <Filter>源文件\Misc</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryGenerator.cpp">
+      <Filter>源文件\Misc</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger.cpp">
+      <Filter>源文件\Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="MeshBuffer.cpp">
+      <Filter>源文件\Core\Resource</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -99,9 +114,6 @@
       <Filter>头文件\Core</Filter>
     </ClInclude>
     <ClInclude Include="Image.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Utils.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Renderer.h">
@@ -135,6 +147,18 @@
       <Filter>头文件\Effect</Filter>
     </ClInclude>
     <ClInclude Include="TAA.h">
+      <Filter>头文件\Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils.h">
+      <Filter>头文件\Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryGenerator.h">
+      <Filter>头文件\Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="MeshBuffer.h">
+      <Filter>头文件\Core\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Debugger.h">
       <Filter>头文件\Effect</Filter>
     </ClInclude>
   </ItemGroup>
