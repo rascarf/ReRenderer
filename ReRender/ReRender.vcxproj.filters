@@ -28,6 +28,18 @@
     <Filter Include="源文件\ThirdParty">
       <UniqueIdentifier>{249885a5-fbf1-4396-8cff-ff7accafc7e0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\Effect">
+      <UniqueIdentifier>{93664a19-65e5-4e84-b47a-5730d0ec8a36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\Effect">
+      <UniqueIdentifier>{5414d891-264d-4218-8fae-75e5277575db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\Core\Resource">
+      <UniqueIdentifier>{5ef82c5d-cdb5-44e2-bbbe-7ce3b2824e8d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="源文件\Core\Resource">
+      <UniqueIdentifier>{bbe0b2a8-f836-4e02-9d1d-2f5a24723960}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -51,19 +63,10 @@
     <ClCompile Include="..\ThirdParty\stb\src\libstb.c">
       <Filter>源文件\ThirdParty</Filter>
     </ClCompile>
-    <ClCompile Include="TAA.cpp">
-      <Filter>源文件\Core\Render</Filter>
-    </ClCompile>
     <ClCompile Include="Camera.cpp">
       <Filter>源文件\Core\Render</Filter>
     </ClCompile>
-    <ClCompile Include="Texture.cpp">
-      <Filter>源文件\Core</Filter>
-    </ClCompile>
     <ClCompile Include="Descriptor.cpp">
-      <Filter>源文件\Core</Filter>
-    </ClCompile>
-    <ClCompile Include="StagingBuffer.cpp">
       <Filter>源文件\Core</Filter>
     </ClCompile>
     <ClCompile Include="RootSignature.cpp">
@@ -71,6 +74,21 @@
     </ClCompile>
     <ClCompile Include="Shader.cpp">
       <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowMap.cpp">
+      <Filter>源文件\Effect</Filter>
+    </ClCompile>
+    <ClCompile Include="UploadBuffer.cpp">
+      <Filter>源文件\Core\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="StagingBuffer.cpp">
+      <Filter>源文件\Core\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>源文件\Core\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="TAA.cpp">
+      <Filter>源文件\Effect</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -92,19 +110,10 @@
     <ClInclude Include="D3D12Renderer.h">
       <Filter>头文件\Core\Render</Filter>
     </ClInclude>
-    <ClInclude Include="TAA.h">
-      <Filter>头文件\Core\Render</Filter>
-    </ClInclude>
     <ClInclude Include="Camera.h">
       <Filter>头文件\Core\Render</Filter>
     </ClInclude>
-    <ClInclude Include="Texture.h">
-      <Filter>头文件\Core</Filter>
-    </ClInclude>
     <ClInclude Include="Descriptor.h">
-      <Filter>头文件\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="StagingBuffer.h">
       <Filter>头文件\Core</Filter>
     </ClInclude>
     <ClInclude Include="RootSignature.h">
@@ -112,6 +121,21 @@
     </ClInclude>
     <ClInclude Include="Shader.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="UploadBuffer.h">
+      <Filter>头文件\Core\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Texture.h">
+      <Filter>头文件\Core\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="StagingBuffer.h">
+      <Filter>头文件\Core\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowMap.h">
+      <Filter>头文件\Effect</Filter>
+    </ClInclude>
+    <ClInclude Include="TAA.h">
+      <Filter>头文件\Effect</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

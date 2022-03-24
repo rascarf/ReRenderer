@@ -9,34 +9,15 @@
 #include "renderer.h"
 #include "StagingBuffer.h"
 #include "Texture.h"
+#include "UploadBuffer.h"
 #include "utils.h"
 
 using Microsoft::WRL::ComPtr;
-
-
-
-//todo change it!
 
 struct SwapChainBuffer
 {
     ComPtr<ID3D12Resource> Buffer;
     Descriptor Rtv;
-};
-
-struct UploadBuffer
-{
-    ComPtr<ID3D12Resource> Buffer;
-    UINT Capacity;
-    UINT Cursor;
-    D3D12_GPU_VIRTUAL_ADDRESS GpuAddress;
-    uint8_t* CpuAddress;
-};
-
-struct UploadBufferRegion
-{
-    void* CpuAddress;
-    D3D12_GPU_VIRTUAL_ADDRESS GpuAddress;
-    UINT Size;
 };
 
 struct MeshBuffer
@@ -59,47 +40,25 @@ struct FrameBuffer
     UINT Samples;
 };
 
-//里面包含了一个UploadBuffer以及对应的Buffer的View
-struct ConstantBufferView
-{
-    UploadBufferRegion Data;
-    Descriptor Cbv;
-
-    template<typename T>T* as() const
-    {
-        return reinterpret_cast<T*>(Data.CpuAddress);
-    }
-
-};
-
-
 
 class D3D12Renderer final : public RendererInterface
 {
 public:
     GLFWwindow* initialize(int Width, int Height, int MaxSamples) override;
     void ShutDown() override;
-    void Setup() override;
-    void Update(const ViewSettings& view, const SceneSettings& Scene) override;
-    void Render(GLFWwindow* Window, const SceneSettings& Scene,const float DeltaTime) override;
+    void Setup(const ViewSettings& view, const SceneSettings& Scene) override;
+    void Update() override;
+    void Render(GLFWwindow* Window,const float DeltaTime) override;
+
+    void SetLight()override;
 
 
 private:
-    DescriptorHeap CreateDescriptorHeap(
-        const D3D12_DESCRIPTOR_HEAP_DESC& Desc
-    )const;
 
     MeshBuffer CreateMeshBuffer(
         const std::shared_ptr<class Mesh>mesh
     )const;
 
-    UploadBuffer CreateUploadBuffer(UINT Capacity)const;
-
-    UploadBufferRegion AllocFromUploadBuffer(
-        UploadBuffer& Buffer,
-        UINT Size,
-        int Align
-    )const;
 
     FrameBuffer CreateFrameBuffer(
         UINT Width,
@@ -114,21 +73,6 @@ private:
         const FrameBuffer& DestBuffer,
         DXGI_FORMAT Format
     )const;
-
-    ConstantBufferView CreateConstantBufferView(
-        const void* Data,
-        UINT size
-    );
-
-    //会为ConstantBufferView设置一个堆
-    template<typename T>
-    ConstantBufferView CreateConstantBufferView
-    (
-        const T* Data = nullptr
-    )
-    {
-        return CreateConstantBufferView(Data, sizeof(T));
-    }
 
 
     void ExecuteCommandList(bool Reset = true)const;
@@ -152,10 +96,14 @@ private:
     static const UINT NumFrames = 2;
     ComPtr<ID3D12CommandAllocator>m_CommandAllocators[NumFrames];
     SwapChainBuffer m_BackBuffers[NumFrames];
+
     FrameBuffer m_FrameBuffers[NumFrames];
     FrameBuffer m_ResolveFrameBuffers[NumFrames];
+
     ConstantBufferView m_TransformCBVs[NumFrames];
     ConstantBufferView m_ShadingCBVs[NumFrames];
+
+    ConstantBufferView m_ShadowMapCBVs[NumFrames];
 
     MipMapGeneration m_mipmapGeneration;
 
@@ -186,6 +134,9 @@ private:
     mutable UINT64 m_FenceValue[NumFrames] = {};
 
     D3D_ROOT_SIGNATURE_VERSION m_RootSignatureVersion;
+
+    ViewSettings m_View;
+    SceneSettings m_Scene;
 
 };
 

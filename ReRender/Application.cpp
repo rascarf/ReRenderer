@@ -33,7 +33,6 @@
 		m_ViewSettings.Width = DisplaySizeX;
 		m_ViewSettings.Height = DisplaySizeY;
 
-		
 
         m_SceneSettings.Lights[0].Direction = glm::normalize(glm::vec3{ -1.0f,  0.0f, 0.0f });
         m_SceneSettings.Lights[1].Direction = glm::normalize(glm::vec3{ 1.0f,  0.0f, 0.0f });
@@ -62,7 +61,7 @@
         glfwSetScrollCallback(m_window, Application::MouseScrollCallback);
         glfwSetKeyCallback(m_window, Application::KeyCallback);
 
-		mRenderer->Setup();
+		mRenderer->Setup(m_ViewSettings, m_SceneSettings);
 
         while(!glfwWindowShouldClose(m_window))
         {
@@ -70,8 +69,8 @@
 			DeltaTime = CurrentTime - LastTime;
 			LastTime = CurrentTime;
 
-			mRenderer->Update(m_ViewSettings, m_SceneSettings);
-			mRenderer->Render(m_window, m_SceneSettings,DeltaTime);
+			mRenderer->Update();
+			mRenderer->Render(m_window,DeltaTime);
             glfwPollEvents();
         }
 
@@ -89,7 +88,7 @@
 			switch (self->m_Mode)
 		    {
 			    case InputMode::RotatingScene:
-				    self->m_SceneSettings.yaw += OrbitSpeed * float(dx);
+				    self->m_SceneSettings.yaw += OrbitSpeed * float( - dx);
 				    self->m_SceneSettings.pitch += OrbitSpeed * float(dy);
 				    break;
 			    case InputMode::RotatingView:
@@ -151,7 +150,7 @@
 
 		if (action == GLFW_PRESS || action == GLFW_REPEAT) 
 		{
-			SceneSettings::Light* light = nullptr;
+			Light* light = nullptr;
 
 			switch (key)
 		    {
@@ -177,6 +176,8 @@
 			case GLFW_KEY_D:
 				mRenderer->mCamera.Strafe(Offset);
 				break;
+			case GLFW_KEY_J:
+				mRenderer->SetLight();
 			}
 
 			if (light) 

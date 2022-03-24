@@ -33,6 +33,12 @@ struct DescriptorHeap
             D3D12_GPU_DESCRIPTOR_HANDLE{Heap->GetGPUDescriptorHandleForHeapStart().ptr + Index * DescriptorSize }
         };
     }
+
+    static DescriptorHeap CreateDescriptorHeap
+    (
+        Microsoft::WRL::ComPtr<ID3D12Device> m_Device,
+        const D3D12_DESCRIPTOR_HEAP_DESC& Desc
+    );
 };
 
 struct DescriptorHeapMark

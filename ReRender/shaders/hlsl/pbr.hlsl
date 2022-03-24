@@ -15,12 +15,14 @@ cbuffer TransformConstants : register(b0)
 {
 	float4x4 viewProjectionMatrix;
 	float4x4 skyProjectionMatrix;
-	float4x4 sceneRotationMatrix;
+	float4x4 ModelMatix;
 };
 
 cbuffer ShadingConstants : register(b0)
 {
-	struct {
+	struct 
+	{
+		float3 Position;
 		float3 direction;
 		float3 radiance;
 	} lights[NumLights];
@@ -97,15 +99,17 @@ uint querySpecularTextureLevels()
 PixelShaderInput main_vs(VertexShaderInput vin)
 {
 	PixelShaderInput vout;
-	vout.position = mul(sceneRotationMatrix, float4(vin.position, 1.0)).xyz;
+	//POSITION in Local Space
+	vout.position = mul(ModelMatix, float4(vin.position, 1.0)).xyz;
 	vout.texcoord = float2(vin.texcoord.x, 1.0-vin.texcoord.y);
 
 	// Pass tangent space basis vectors (for normal mapping).
 	float3x3 TBN = float3x3(vin.tangent, vin.bitangent, vin.normal);
-	vout.tangentBasis = mul((float3x3)sceneRotationMatrix, transpose(TBN));
+	vout.tangentBasis = mul((float3x3)ModelMatix, transpose(TBN));
 
-	float4x4 mvpMatrix = mul(viewProjectionMatrix, sceneRotationMatrix);
+	float4x4 mvpMatrix = mul(viewProjectionMatrix, ModelMatix);
 	vout.pixelPosition = mul(mvpMatrix, float4(vin.position, 1.0));
+	// vout.pixelPosition.z = - vout.pixelPosition.z;
 	return vout;
 }
 

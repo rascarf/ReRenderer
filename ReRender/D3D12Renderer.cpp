@@ -20,6 +20,8 @@
 
 #include "RootSignature.h"
 #include "Shader.h"
+#include "ShadowMap.h"
+#include "UploadBuffer.h"
 
 
 using Mat4 = glm::mat4;
@@ -30,19 +32,26 @@ struct TransformCB
 {
     Mat4 ViewPorjectionMatrix;
     Mat4 SkyProjectionMatrix;
-    Mat4 SceneRotationMatix;
+    Mat4 ObjectMVPMatix;
 };
 
 struct ShadingCB
 {
     struct 
     {
+        Vec4 Position;
         Vec4 Direction;
         Vec4 Radiance;
     }Light[SceneSettings::NumLights];
 
     Vec4 EyePosition;
+    float RenderTargetWidth;
+    float RenderTargetHeight;
+    float NearZ;
+    float FarZ;
+    Mat4 ShadowTransform;
 };
+
 
 GLFWwindow* D3D12Renderer::initialize(int Width, int Height, int MaxSamples)
 {
@@ -152,21 +161,24 @@ GLFWwindow* D3D12Renderer::initialize(int Width, int Height, int MaxSamples)
 
     //创建描述符堆
     {
-        m_DescHeapRtv = CreateDescriptorHeap(
+        m_DescHeapRtv = DescriptorHeap::CreateDescriptorHeap(
+            m_Device,
             { D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-                16,
+                100,
                 D3D12_DESCRIPTOR_HEAP_FLAG_NONE });
 
-        m_DescHeapDsv = CreateDescriptorHeap(
+        m_DescHeapDsv = DescriptorHeap::CreateDescriptorHeap(
+            m_Device,
             {
                 D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-                16,
+                100,
             D3D12_DESCRIPTOR_HEAP_FLAG_NONE });
 
-        m_DescHeapCBV_SRV_UAV = CreateDescriptorHeap(
+        m_DescHeapCBV_SRV_UAV = DescriptorHeap::CreateDescriptorHeap(
+            m_Device,
             {
                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                128,
+                10000,
             D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE });
     }
 
@@ -237,9 +249,13 @@ void D3D12Renderer::ShutDown()
     CloseHandle(m_FenceCompletionEvent);
 }
 
-void D3D12Renderer::Setup()
+void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
 {
-    CD3DX12_STATIC_SAMPLER_DESC DefaultSamplerDesc{
+    m_View = view;
+    m_Scene = Scene;
+
+    CD3DX12_STATIC_SAMPLER_DESC DefaultSamplerDesc
+    {
     0,
     D3D12_FILTER_ANISOTROPIC
     };
@@ -464,6 +480,7 @@ void D3D12Renderer::Setup()
             throw std::runtime_error("Failed to create graphics pipeline state for PBR model");
         }
     }
+
     auto Callback = [&]()
     {
         ExecuteCommandList();
@@ -792,15 +809,18 @@ void D3D12Renderer::Setup()
     }
 
     //创建64KB host-mappedBuffer在Uploadheap上来给shaderconstants
-    m_constantBuffer = CreateUploadBuffer(64 * 1024); // 64 KB
+    m_constantBuffer = UploadBuffer::CreateUploadBuffer(m_Device,64 * 1024); // 64 KB
 
     //配置每帧的Resource
     {
         std::vector<D3D12_RESOURCE_BARRIER> barriers{ NumFrames };
         for(UINT FrameIndex = 0 ; FrameIndex < NumFrames ; ++FrameIndex)
         {
-            m_TransformCBVs[FrameIndex] = CreateConstantBufferView<TransformCB>();
-            m_ShadingCBVs[FrameIndex] = CreateConstantBufferView<ShadingCB>();
+            m_TransformCBVs[FrameIndex] = ConstantBufferView::CreateConstantBufferView<TransformCB>(m_Device,m_DescHeapCBV_SRV_UAV,m_constantBuffer);
+
+            m_ShadingCBVs[FrameIndex] = ConstantBufferView::CreateConstantBufferView<ShadingCB>(m_Device, m_DescHeapCBV_SRV_UAV, m_constantBuffer);
+
+            m_ShadowMapCBVs[FrameIndex] = ConstantBufferView::CreateConstantBufferView<Constant4Shader>(m_Device, m_DescHeapCBV_SRV_UAV, m_constantBuffer);
 
             barriers[FrameIndex] = CD3DX12_RESOURCE_BARRIER::Transition(m_ResolveFrameBuffers[FrameIndex].ColorTexture.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         }
@@ -812,26 +832,36 @@ void D3D12Renderer::Setup()
     WaitForGPU();
 }
 
-void D3D12Renderer::Update(const ViewSettings& view, const SceneSettings& Scene)
+void D3D12Renderer::Update()
 {
-    mCamera.SetLens(view.fov, float(1024), float(1024), 1.0f, 1000.0f);
+    mCamera.SetLens(m_View.fov, float(1024), float(1024), 1.0f, 1000.0f);
 }
 
-void D3D12Renderer::Render(GLFWwindow* Window,const SceneSettings& Scene,const float DeltaTime)
+void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
 {
 
-    std::printf("%0.3f %0.3f %0.3f\n", mCamera.GetPosition()[0], mCamera.GetPosition()[1], mCamera.GetPosition()[2]);
+    // std::printf("%0.3f %0.3f %0.3f\n", mCamera.GetPosition()[0], mCamera.GetPosition()[1], mCamera.GetPosition()[2]);
+    //
+    // std::printf("LOOKAT %0.3f %0.3f %0.3f\n", mCamera.GetLook()[0], mCamera.GetLook()[1], mCamera.GetLook()[2]);
 
     const ConstantBufferView& transformCBV = m_TransformCBVs[m_FrameIndex];
     const ConstantBufferView& shadingCBV = m_ShadingCBVs[m_FrameIndex];
 
     const Vec3 EyePosition = glm::inverse(mCamera.GetView())[3];
-        //更新Transform constant
+
+    //更新Transform constant
     {
         TransformCB* transformConstants = transformCBV.as<TransformCB>();
         transformConstants->ViewPorjectionMatrix = mCamera.GetProj() * mCamera.GetView();
         transformConstants->SkyProjectionMatrix = mCamera.GetProj() * mCamera.GetRotation();
-        transformConstants->SceneRotationMatix = glm::eulerAngleXY(glm::radians(Scene.pitch), glm::radians(Scene.yaw));
+
+        //ObjectMvp
+        //先缩放，再旋转，最后平移
+        Mat4 Model = glm::mat4x4(1);
+        Model=glm::translate(Model, Vec3{ 5,0,0 });
+
+        Model*= glm::eulerAngleXY(glm::radians(m_Scene.pitch), glm::radians(m_Scene.yaw));
+        transformConstants->ObjectMVPMatix = Model;
     }
 
     //更新Shading constant
@@ -840,7 +870,7 @@ void D3D12Renderer::Render(GLFWwindow* Window,const SceneSettings& Scene,const f
         ShadingConstants->EyePosition = Vec4{ EyePosition,0.0f };
         for(int i =0 ; i < SceneSettings::NumLights ; ++i)
         {
-            const SceneSettings::Light& light = Scene.Lights[i];
+            const Light& light = m_Scene.Lights[i];
             ShadingConstants->Light[i].Direction = Vec4{ light.Direction,0.0f };
             if(light.Enabel)
             {
@@ -884,9 +914,9 @@ void D3D12Renderer::Render(GLFWwindow* Window,const SceneSettings& Scene,const f
     }
 
     //准备渲染到Main FrameBuffer
-
+    float a[4] = { 1.0f,1.0f,1.0f,1.0f };
     m_CommandList->OMSetRenderTargets(1, &framebuffer.Rtv.CpuHandle, false, &framebuffer.Dsv.CpuHandle);
-
+    m_CommandList->ClearRenderTargetView(framebuffer.Rtv.CpuHandle, a,1, &ScissRect);
     m_CommandList->ClearDepthStencilView(framebuffer.Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     m_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
@@ -947,19 +977,13 @@ void D3D12Renderer::Render(GLFWwindow* Window,const SceneSettings& Scene,const f
     PresentFrame();
 }
 
-DescriptorHeap D3D12Renderer::CreateDescriptorHeap(const D3D12_DESCRIPTOR_HEAP_DESC& Desc) const
+void D3D12Renderer::SetLight()
 {
-    DescriptorHeap Heap;
-    if(FAILED(m_Device->CreateDescriptorHeap(&Desc,IID_PPV_ARGS(&Heap.Heap))))
-    {
-        throw std::runtime_error("Falied to Create Descriptor Heap");
-    }
+    m_Scene.Lights[0].Position = mCamera.GetPosition();
+    m_Scene.Lights[0].Direction = mCamera.GetLook();
+    printf("Set Light[0] Position %.3f %.3f %.3f \n", m_Scene.Lights[0].Position[0], m_Scene.Lights[0].Position[1], m_Scene.Lights[0].Position[2]);
+    printf("Set Light[0] Direction %.3f %.3f %.3f \n", m_Scene.Lights[0].Direction[0], m_Scene.Lights[0].Direction[1], m_Scene.Lights[0].Direction[2]);
 
-    Heap.NumDescriptorsAllocated = 0;
-    Heap.NumDescriptorsInHeap = Desc.NumDescriptors;
-    Heap.DescriptorSize = m_Device->GetDescriptorHandleIncrementSize(Desc.Type);
-
-    return Heap;
 }
 
 MeshBuffer D3D12Renderer::CreateMeshBuffer(const std::shared_ptr<Mesh> mesh) const
@@ -1042,51 +1066,6 @@ MeshBuffer D3D12Renderer::CreateMeshBuffer(const std::shared_ptr<Mesh> mesh) con
     return Buffer;
 }
 
-UploadBuffer D3D12Renderer::CreateUploadBuffer(UINT Capacity) const
-{
-    UploadBuffer buffer;
-    buffer.Cursor = 0;
-    buffer.Capacity = Capacity;
-
-    auto HeapProperty = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(Capacity);
-
-    if (FAILED(m_Device->CreateCommittedResource(
-        &HeapProperty,
-        D3D12_HEAP_FLAG_NONE,
-        &ResourceDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ,
-        nullptr,
-        IID_PPV_ARGS(&buffer.Buffer))))
-    {
-        throw std::runtime_error("Failed to create GPU upload buffer");
-    }
-
-    auto Range = CD3DX12_RANGE{ 0, 0 };
-    if (FAILED(buffer.Buffer->Map(0, &Range, reinterpret_cast<void**>(&buffer.CpuAddress)))) 
-    {
-        throw std::runtime_error("Failed to map GPU upload buffer to host address space");
-    }
-    buffer.GpuAddress = buffer.Buffer->GetGPUVirtualAddress();
-    return buffer;
-}
-
-UploadBufferRegion D3D12Renderer::AllocFromUploadBuffer(UploadBuffer& Buffer, UINT Size, int Align) const
-{
-    const UINT AlignedSize = Utils::roundToPowerOfTwo(Size, Align);
-    if(Buffer.Cursor + AlignedSize > Buffer.Capacity)
-    {
-        throw std::overflow_error("Out of upload buffer capacity while allocating memory");
-    }
-
-    UploadBufferRegion Region;
-    Region.CpuAddress = reinterpret_cast<void*>(Buffer.CpuAddress + Buffer.Cursor);
-    Region.GpuAddress = Buffer.GpuAddress + Buffer.Cursor;
-    Region.Size = AlignedSize;
-    Buffer.Cursor += AlignedSize;
-
-    return Region;
-}
 
 FrameBuffer D3D12Renderer::CreateFrameBuffer(UINT Width, UINT Height, UINT Samples, DXGI_FORMAT ColorFormat,DXGI_FORMAT DepthStencilFormat)
 {
@@ -1203,23 +1182,6 @@ void D3D12Renderer::ResolveFrameBuffer(const FrameBuffer& SourceBuffer, const Fr
 
 }
 
-ConstantBufferView D3D12Renderer::CreateConstantBufferView(const void* Data, UINT size)
-{
-    ConstantBufferView View;
-    View.Data = AllocFromUploadBuffer(m_constantBuffer, size, 256);
-    View.Cbv = m_DescHeapCBV_SRV_UAV.Alloc();
-    if(Data)
-    {
-        std::memcpy(View.Data.CpuAddress, Data, size);
-    }
-
-    D3D12_CONSTANT_BUFFER_VIEW_DESC Desc = {};
-    Desc.BufferLocation = View.Data.GpuAddress;
-    Desc.SizeInBytes = View.Data.Size;
-    m_Device->CreateConstantBufferView(&Desc, View.Cbv.CpuHandle);
-
-    return View;
-}
 
 void D3D12Renderer::ExecuteCommandList(bool Reset) const
 {

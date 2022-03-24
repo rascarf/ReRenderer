@@ -32,6 +32,38 @@ Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,Des
     Desc.SampleDesc.Count = 1;
     Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 
+    if(Format == DXGI_FORMAT_R24G8_TYPELESS)
+    {
+        D3D12_CLEAR_VALUE OptClear;
+        OptClear.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        OptClear.DepthStencil.Depth = 1.0f;
+        OptClear.DepthStencil.Stencil = 0;
+
+        auto DefaultType = CD3DX12_HEAP_PROPERTIES{ D3D12_HEAP_TYPE_DEFAULT };
+        if (FAILED(m_Device->CreateCommittedResource(
+            &DefaultType,
+            D3D12_HEAP_FLAG_NONE,
+            &Desc,
+            D3D12_RESOURCE_STATE_COMMON,
+            nullptr,
+            IID_PPV_ARGS(&texture.texture))))
+        {
+            throw std::runtime_error("Failed to create 2D texture");
+        }
+
+        D3D12_SRV_DIMENSION SrvDim;
+        switch (Depth)
+        {
+            case 1: SrvDim = D3D12_SRV_DIMENSION_TEXTURE2D; break;
+            case 6:SrvDim = D3D12_SRV_DIMENSION_TEXTURECUBE; break;
+            default:SrvDim = D3D12_SRV_DIMENSION_TEXTURE2DARRAY; break;
+        }
+
+        CreateTextureSRV(m_Device, m_DescHeapCBV_SRV_UAV, texture, SrvDim);
+
+        return texture;
+    }
+
     auto DefaultType = CD3DX12_HEAP_PROPERTIES{ D3D12_HEAP_TYPE_DEFAULT };
     if (FAILED(m_Device->CreateCommittedResource(
         &DefaultType,

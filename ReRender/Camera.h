@@ -56,10 +56,10 @@ public:
     void UpdateViewMatrix();
 
 private:
-    Vec3 mPosition = { 0.0f,0.0f,0.0f };
+    Vec3 mPosition = {0,0,-10};
     Vec3 mRight = { 1.0f, 0.0f, 0.0f };
     Vec3 mUp = { 0.0f, 1.0f, 0.0f };
-    Vec3 mLook = { 0.0f, 0.0f, 1.0f };
+    Vec3 mLook = { 0, 0 , 1 };
     Vec3 WorldUp = { 0.0f,1.0f,0.0f };
 
     Mat4 mView;
@@ -75,8 +75,6 @@ private:
 
     float mNearWindowHeight = 0.0f;
     float mFarWindowHeight = 0.0f;
-
-    bool mViewDirty = true;
 
     float Pitch;
     float Yaw;

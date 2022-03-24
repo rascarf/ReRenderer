@@ -154,9 +154,11 @@
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="RootSignature.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="ShadowMap.cpp" />
     <ClCompile Include="StagingBuffer.cpp" />
     <ClCompile Include="TAA.cpp" />
     <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="UploadBuffer.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -169,9 +171,11 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RootSignature.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="ShadowMap.h" />
     <ClInclude Include="StagingBuffer.h" />
     <ClInclude Include="TAA.h" />
     <ClInclude Include="Texture.h" />
+    <ClInclude Include="UploadBuffer.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -98,7 +98,9 @@ void Camera::SetLens(float fovY, float Width ,float Height, float zn, float zf)
     mFarWindowHeight = 2.0f * mFarZ * tanf(0.5f * mFovY);
 
     Mat4 P;
-    P = glm::perspectiveFov(mFovY, Width, Height, mNearZ,mFarZ);
+    P = glm::perspectiveFovRH_ZO(mFovY, Width, Height, mNearZ, mFarZ);
+    // P = glm::orthoRH_ZO(-512.0f, 512.0f, -512.0f, 512.0f, 0.1f, 1000.0f);
+
     mProj = P;
 }
 
@@ -119,7 +121,6 @@ void Camera::Strafe(float d)
     mPosition[1] = d * mRight[1] + mPosition[1];
     mPosition[2] = d * mRight[2] + mPosition[2];
 
-    mViewDirty = true;
     UpdateViewMatrix();
 }
 
@@ -130,7 +131,6 @@ void Camera::Walk(float d)
     mPosition[1] = d * mLook[1] + mPosition[1];
     mPosition[2] = d * mLook[2] + mPosition[2];
 
-    mViewDirty = true;
     UpdateViewMatrix();
 }
 
@@ -141,7 +141,6 @@ void Camera::Ascend(float d)
     mPosition[1] = d * mUp[1] + mPosition[1];
     mPosition[2] = d * mUp[2] + mPosition[2];
 
-    mViewDirty = true;
     UpdateViewMatrix();
 }
 
@@ -155,7 +154,6 @@ void Camera::Rotate(float DPitch, float DYaw)
     if (Pitch < -89.0f)
         Pitch = -89.0f;
 
-    mViewDirty = true;
     UpdateViewMatrix();
 }
 
@@ -172,6 +170,7 @@ void Camera::UpdateViewMatrix()
     front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
     front.y = sin(glm::radians(Pitch));
     front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+
 
     mLook = glm::normalize(front);
     mRight = glm::normalize(glm::cross(mLook, WorldUp)); 
