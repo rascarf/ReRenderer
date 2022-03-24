@@ -42,7 +42,7 @@ struct GLFWwindow;
         virtual GLFWwindow* initialize(int Width, int Height, int MaxSamples) = 0;
         virtual void ShutDown() = 0;
         virtual void Setup(const ViewSettings& view, const SceneSettings& Scene) = 0;
-        virtual void Update() = 0;
+        virtual void Update(const float DeltaTime) = 0;
         virtual void Render(GLFWwindow* Window,const float DeltaTime) = 0;
 
         virtual void SetLight() = 0;

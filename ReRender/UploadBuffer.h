@@ -40,6 +40,8 @@ public:
 
 };
 
+//包含了UploadBuffer的Cpu端和Gpu端地址
+//可以看作是某个UploadBuffer的一部分
 class ConstantBufferView
 {
 public:

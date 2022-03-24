@@ -35,7 +35,8 @@ public:
         UINT Height,
         UINT Depth,
         DXGI_FORMAT Format,
-        UINT Levels = 0
+        UINT Levels = 0,
+        D3D12_RESOURCE_FLAGS Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
     );
 
     static Texture CreateTexture(
@@ -64,7 +65,8 @@ public:
         Texture& texture,
         D3D12_SRV_DIMENSION Dimension,
         UINT MostDetailedMip = 0,
-        UINT MipLevels = 0
+        UINT MipLevels = 0,
+        bool bIsOnlyDepth = false
     );
 
     static void CreateTextureUAV(

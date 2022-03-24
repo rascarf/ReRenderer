@@ -13,7 +13,7 @@
 #include "StagingBuffer.h"
 #include "Utils.h"
 
-Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,DescriptorHeap& m_DescHeapCBV_SRV_UAV,UINT Width,UINT Height,UINT Depth,DXGI_FORMAT Format,UINT Levels)
+Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,DescriptorHeap& m_DescHeapCBV_SRV_UAV,UINT Width,UINT Height,UINT Depth,DXGI_FORMAT Format,UINT Levels,D3D12_RESOURCE_FLAGS Flags)
 {
     assert(Depth == 1 || Depth == 6);
 
@@ -30,7 +30,7 @@ Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,Des
     Desc.MipLevels = Levels;
     Desc.Format = Format;
     Desc.SampleDesc.Count = 1;
-    Desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+    Desc.Flags = Flags;
 
     if(Format == DXGI_FORMAT_R24G8_TYPELESS)
     {
@@ -45,7 +45,7 @@ Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,Des
             D3D12_HEAP_FLAG_NONE,
             &Desc,
             D3D12_RESOURCE_STATE_COMMON,
-            nullptr,
+            &OptClear,
             IID_PPV_ARGS(&texture.texture))))
         {
             throw std::runtime_error("Failed to create 2D texture");
@@ -59,7 +59,7 @@ Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,Des
             default:SrvDim = D3D12_SRV_DIMENSION_TEXTURE2DARRAY; break;
         }
 
-        CreateTextureSRV(m_Device, m_DescHeapCBV_SRV_UAV, texture, SrvDim);
+        CreateTextureSRV(m_Device, m_DescHeapCBV_SRV_UAV, texture, SrvDim,0,0,true);
 
         return texture;
     }
@@ -312,7 +312,8 @@ void Texture::CreateTextureSRV(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,
     Texture& texture,
     D3D12_SRV_DIMENSION Dimension,
     UINT MostDetailedMip,
-    UINT MipLevels)
+    UINT MipLevels,
+    bool IsOnlyDepth)
 {
     const D3D12_RESOURCE_DESC Desc = texture.texture->GetDesc();
     const UINT EffectiveMipLevels = (MipLevels > 0) ? MipLevels : (Desc.MipLevels - MostDetailedMip);
@@ -324,6 +325,12 @@ void Texture::CreateTextureSRV(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,
     srvDesc.Format = Desc.Format;
     srvDesc.ViewDimension = Dimension;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+    if(IsOnlyDepth)
+    {
+        srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    }
+
     switch (Dimension)
     {
     case D3D12_SRV_DIMENSION_TEXTURE2D:

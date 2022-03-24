@@ -6,6 +6,7 @@
 #include "Camera.h"
 #include "renderer.h"
 #include "Texture.h"
+#include "UploadBuffer.h"
 
 using Microsoft::WRL::ComPtr;
 using Vec2 = glm::vec2;
@@ -32,11 +33,8 @@ public:
         CD3DX12_STATIC_SAMPLER_DESC& DefaultSamplerDesc,
         D3D_ROOT_SIGNATURE_VERSION& RootSignatureVersion);
 
-    void UpdateShadowTransform(const float DeltaTime,Light InLight);
-    void UpdateShadowConstantBuffer();
-
-
-private:
+    void UpdateShadowTransform(const float DeltaTime,Light InLight, ConstantBufferView ConstantBuffer);
+    void UpdateShadowConstantBuffer(ConstantBufferView ConstantBuffer);
 
     ComPtr<ID3D12Device> m_Device;
     ComPtr<ID3D12RootSignature> m_ShadowSignature;

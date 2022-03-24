@@ -7,6 +7,7 @@
 
 #include "Descriptor.h"
 #include "renderer.h"
+#include "ShadowMap.h"
 #include "StagingBuffer.h"
 #include "Texture.h"
 #include "UploadBuffer.h"
@@ -47,7 +48,7 @@ public:
     GLFWwindow* initialize(int Width, int Height, int MaxSamples) override;
     void ShutDown() override;
     void Setup(const ViewSettings& view, const SceneSettings& Scene) override;
-    void Update() override;
+    void Update(const float DeltaTime) override;
     void Render(GLFWwindow* Window,const float DeltaTime) override;
 
     void SetLight()override;
@@ -102,7 +103,6 @@ private:
 
     ConstantBufferView m_TransformCBVs[NumFrames];
     ConstantBufferView m_ShadingCBVs[NumFrames];
-
     ConstantBufferView m_ShadowMapCBVs[NumFrames];
 
     MipMapGeneration m_mipmapGeneration;
@@ -127,6 +127,8 @@ private:
 
     ComPtr<ID3D12RootSignature> m_SkyBoxRootSignature;
     ComPtr<ID3D12PipelineState> m_SkyBoxPipelineState;
+
+    std::unique_ptr<ShadowMap> m_ShadowMap;
 
     UINT m_FrameIndex;
     ComPtr<ID3D12Fence> m_Fence;

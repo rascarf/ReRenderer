@@ -24,18 +24,20 @@ ShadowMap::ShadowMap(
     m_RootSignatureVersion(RootSignatureVersion)
 
 {
-    ShadowMapTexture = Texture::CreateTexture(m_Device, m_DescHeapCBV_SRV_UAV, Width, Height, 1, DXGI_FORMAT_R24G8_TYPELESS, 1);
+    DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
+
+    ShadowMapTexture = Texture::CreateTexture(m_Device, m_DescHeapCBV_SRV_UAV, Width, Height, 1, DXGI_FORMAT_R24G8_TYPELESS, 1,D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
     //创建ShadowMap的根签名和PSO
     {
         ComPtr<ID3DBlob> ShadowMapVS = Shader::compileShader(
-            "",
+            "shaders/hlsl/ShadowMap.hlsl",
             "main_vs",
             "vs_5_0"
             );
 
         ComPtr<ID3DBlob> ShadowMapPS = Shader::compileShader(
-            "",
+            "shaders/hlsl/ShadowMap.hlsl",
             "main_ps",
             "ps_5_0"
             );
@@ -63,13 +65,18 @@ ShadowMap::ShadowMap(
         psoDesc.VS = CD3DX12_SHADER_BYTECODE(ShadowMapVS.Get());
         psoDesc.PS = CD3DX12_SHADER_BYTECODE(ShadowMapPS.Get());
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+        psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
         psoDesc.RasterizerState.FrontCounterClockwise = true;
+        psoDesc.RasterizerState.DepthBias = 100000;
+        psoDesc.RasterizerState.DepthBiasClamp = 0.0f;
+        psoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
         psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         psoDesc.NumRenderTargets = 1;
-        psoDesc.RTVFormats[0] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
         psoDesc.SampleDesc.Count = SamperCount;
         psoDesc.SampleMask = UINT_MAX;
+        psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
         if (FAILED(m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_ShadowPipelineState)))) {
             throw std::runtime_error("Failed to create graphics pipeline state for skybox");
@@ -83,9 +90,16 @@ ShadowMap::ShadowMap(
 
     //Texture要做深度图使用，额外创建一个DSV
      Dsv = m_DescHeapDsv.Alloc();
+
+     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+     dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+     dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+     dsvDesc.Texture2D.MipSlice = 0;
+     m_Device->CreateDepthStencilView(ShadowMapTexture.texture.Get(), &dsvDesc, Dsv.CpuHandle);
 }
 
-void ShadowMap::UpdateShadowTransform(const float DeltaTime,Light InLight)
+void ShadowMap::UpdateShadowTransform(const float DeltaTime,Light InLight, ConstantBufferView ConstantBuffer)
 {
     m_LightPosition = InLight.Position;
     m_LightDirection = InLight.Direction;
@@ -93,13 +107,13 @@ void ShadowMap::UpdateShadowTransform(const float DeltaTime,Light InLight)
 
     m_LightView = glm::lookAt(m_LightPosition, m_LightPosition + m_LightDirection, LightUp);
 
-    m_LightProject = glm::orthoRH_ZO(-512.0f,512.0f,-512.0f,512.0f,0.0f,1000.0f);
+    m_LightProject = glm::orthoRH_ZO(-100.0f,100.0f,-100.0f,100.0f,0.0f,1000.0f);
 
     //构建NDCToTexture
     Mat4 T
     { 
         0.5f , 0.0f ,0.0f , 0.5f,
-        0.0f , -0.5f , 0.0f , 0.5f,
+        0.0f , 0.5f , 0.0f , 0.5f,
         0.0f , 0.0f , 1.0f , 0.0f,
         0.0f , 0.0f , 0.0f , 1.0f
     };
@@ -107,13 +121,19 @@ void ShadowMap::UpdateShadowTransform(const float DeltaTime,Light InLight)
     //LightToTexture
     m_LightToTexture = T * m_LightProject * m_LightView;
 
-    UpdateShadowConstantBuffer();
+    UpdateShadowConstantBuffer(ConstantBuffer);
 }
 
-void ShadowMap::UpdateShadowConstantBuffer()
+void ShadowMap::UpdateShadowConstantBuffer(ConstantBufferView ConstantBuffer)
 {
     CpuConstant.Light2Tetxure = m_LightToTexture;
     CpuConstant.NearZ = 0.1f;
     CpuConstant.FarZ = 1000.0f;
     CpuConstant.RenderTargetSize = { 1024.0f,1024.0f };
+
+    Constant4Shader* ShadowConstantInBuffer = ConstantBuffer.as<Constant4Shader>();
+    ShadowConstantInBuffer->FarZ = CpuConstant.FarZ;
+    ShadowConstantInBuffer->NearZ = CpuConstant.NearZ;
+    ShadowConstantInBuffer->Light2Tetxure = CpuConstant.Light2Tetxure;
+    ShadowConstantInBuffer->RenderTargetSize = CpuConstant.RenderTargetSize;
 }

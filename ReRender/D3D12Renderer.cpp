@@ -344,57 +344,57 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
         }
     }
 
+    const std::vector<D3D12_INPUT_ELEMENT_DESC> MeshInputLayout =
+    {
+        {
+            "POSITION",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,
+            0,
+            0,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0
+        },
+        {
+            "NORMAL",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,
+            0,
+            12,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0
+        },
+        {
+            "TANGENT",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,
+            0,
+            24,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0
+        },
+        {
+            "BITANGENT",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,
+            0,
+            36,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0
+        },
+        {
+            "TEXCOORD",
+            0,
+            DXGI_FORMAT_R32G32_FLOAT,
+            0,
+            48,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0
+        }
+    };
+
     //创建PBR model的根签名和PSO
     {
-        const std::vector<D3D12_INPUT_ELEMENT_DESC> MeshInputLayout =
-        {
-            {
-                "POSITION",
-                0,
-                DXGI_FORMAT_R32G32B32_FLOAT,
-                0,
-                0,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0
-            },
-            {
-                "NORMAL",
-                0,
-                DXGI_FORMAT_R32G32B32_FLOAT,
-                0,
-                12,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0
-            },
-            {
-                "TANGENT",
-                0,
-                DXGI_FORMAT_R32G32B32_FLOAT,
-                0,
-                24,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0
-            },
-            {
-                "BITANGENT",
-                0,
-                DXGI_FORMAT_R32G32B32_FLOAT,
-                0,
-                36,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0
-            },
-            {
-                "TEXCOORD",
-                0,
-                DXGI_FORMAT_R32G32_FLOAT,
-                0,
-                48,
-                D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                0
-            }
-        };
-
         ComPtr<ID3DBlob> PbrVs = Shader::compileShader(
             "Shaders/hlsl/pbr.hlsl",
             "main_vs",
@@ -808,8 +808,11 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
         }
     }
 
-    //创建64KB host-mappedBuffer在Uploadheap上来给shaderconstants
-    m_constantBuffer = UploadBuffer::CreateUploadBuffer(m_Device,64 * 1024); // 64 KB
+    //创建ShadowMap
+     m_ShadowMap = std::make_unique<ShadowMap>(m_Device,m_DescHeapCBV_SRV_UAV,m_DescHeapDsv,1024,1024,1, MeshInputLayout,DefaultSamplerDesc,m_RootSignatureVersion);
+
+    //创建128KB host-mappedBuffer在Uploadheap上来给shaderconstants
+    m_constantBuffer = UploadBuffer::CreateUploadBuffer(m_Device,128 * 1024); // 128 KB
 
     //配置每帧的Resource
     {
@@ -828,28 +831,26 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
         m_CommandList->ResourceBarrier(NumFrames, barriers.data());
     }
 
+    mCamera.SetLens(m_View.fov, float(1024), float(1024), 1.0f, 1000.0f);
+
     ExecuteCommandList(false);
     WaitForGPU();
 }
 
-void D3D12Renderer::Update()
+void D3D12Renderer::Update(const float DeltaTime)
 {
-    mCamera.SetLens(m_View.fov, float(1024), float(1024), 1.0f, 1000.0f);
-}
-
-void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
-{
-
-    // std::printf("%0.3f %0.3f %0.3f\n", mCamera.GetPosition()[0], mCamera.GetPosition()[1], mCamera.GetPosition()[2]);
-    //
-    // std::printf("LOOKAT %0.3f %0.3f %0.3f\n", mCamera.GetLook()[0], mCamera.GetLook()[1], mCamera.GetLook()[2]);
-
     const ConstantBufferView& transformCBV = m_TransformCBVs[m_FrameIndex];
     const ConstantBufferView& shadingCBV = m_ShadingCBVs[m_FrameIndex];
+    const ConstantBufferView& ShadowMapCBV = m_ShadowMapCBVs[m_FrameIndex];
 
     const Vec3 EyePosition = glm::inverse(mCamera.GetView())[3];
 
-    //更新Transform constant
+    //Update ShadowMapCBV
+    {
+        m_ShadowMap->UpdateShadowTransform(DeltaTime, m_Scene.Lights[0], ShadowMapCBV);
+    }
+
+    //Update TransformCB
     {
         TransformCB* transformConstants = transformCBV.as<TransformCB>();
         transformConstants->ViewPorjectionMatrix = mCamera.GetProj() * mCamera.GetView();
@@ -857,31 +858,40 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
 
         //ObjectMvp
         //先缩放，再旋转，最后平移
-        Mat4 Model = glm::mat4x4(1);
-        Model=glm::translate(Model, Vec3{ 5,0,0 });
-
-        Model*= glm::eulerAngleXY(glm::radians(m_Scene.pitch), glm::radians(m_Scene.yaw));
-        transformConstants->ObjectMVPMatix = Model;
+        Mat4 ModelMVP = glm::mat4x4(1);
+        ModelMVP = glm::translate(ModelMVP, Vec3{ 5,0,0 });
+        ModelMVP *= glm::eulerAngleXY(glm::radians(m_Scene.pitch), glm::radians(m_Scene.yaw));
+        transformConstants->ObjectMVPMatix = ModelMVP;
     }
 
-    //更新Shading constant
+    //Update Shading constant
     {
+        // std::printf("%0.3f %0.3f %0.3f\n", mCamera.GetPosition()[0], mCamera.GetPosition()[1], mCamera.GetPosition()[2]);
+        // std::printf("LOOKAT %0.3f %0.3f %0.3f\n", mCamera.GetLook()[0], mCamera.GetLook()[1], mCamera.GetLook()[2]);
+
         ShadingCB* ShadingConstants = shadingCBV.as<ShadingCB>();
         ShadingConstants->EyePosition = Vec4{ EyePosition,0.0f };
-        for(int i =0 ; i < SceneSettings::NumLights ; ++i)
+        for (int i = 0; i < SceneSettings::NumLights; ++i)
         {
             const Light& light = m_Scene.Lights[i];
             ShadingConstants->Light[i].Direction = Vec4{ light.Direction,0.0f };
-            if(light.Enabel)
+            if (light.Enabel)
             {
                 ShadingConstants->Light[i].Radiance = Vec4{ light.Radiance,0.0f };
             }
             else
             {
-                ShadingConstants->Light[i].Radiance = Vec4{1.0,1.0,1.0,0.0 };
+                ShadingConstants->Light[i].Radiance = Vec4{ 1.0,1.0,1.0,0.0 };
             }
         }
     }
+}
+
+void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
+{
+    const ConstantBufferView& transformCBV = m_TransformCBVs[m_FrameIndex];
+    const ConstantBufferView& shadingCBV = m_ShadingCBVs[m_FrameIndex];
+    const ConstantBufferView& ShadowMapCBV = m_ShadowMapCBVs[m_FrameIndex];
 
     ID3D12CommandAllocator* commandAllocator = m_CommandAllocators[m_FrameIndex].Get();
     const SwapChainBuffer& backbuffer = m_BackBuffers[m_FrameIndex];
@@ -891,44 +901,76 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
     commandAllocator->Reset();
     m_CommandList->Reset(commandAllocator, m_SkyBoxPipelineState.Get());
 
-    //设置全局状态
-
-    auto Viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, (FLOAT)framebuffer.Width, (FLOAT)framebuffer.Height };
-
-    auto ScissRect = CD3DX12_RECT{ 0, 0, (LONG)framebuffer.Width, (LONG)framebuffer.Height };
-
-    m_CommandList->RSSetViewports(1, &Viewport);
-    m_CommandList->RSSetScissorRects(1, &ScissRect);
-
-    ID3D12DescriptorHeap* DescriptorHeap[] =
-    {
-        m_DescHeapCBV_SRV_UAV.Heap.Get()
-    };
-
-    m_CommandList->SetDescriptorHeaps(1, DescriptorHeap);
-
     if(framebuffer.Samples <= 1)
     {
         auto ResourceBarrier = CD3DX12_RESOURCE_BARRIER::Transition(framebuffer.ColorTexture.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
         m_CommandList->ResourceBarrier(1, &ResourceBarrier);
     }
 
-    //准备渲染到Main FrameBuffer
-    float a[4] = { 1.0f,1.0f,1.0f,1.0f };
-    m_CommandList->OMSetRenderTargets(1, &framebuffer.Rtv.CpuHandle, false, &framebuffer.Dsv.CpuHandle);
-    m_CommandList->ClearRenderTargetView(framebuffer.Rtv.CpuHandle, a,1, &ScissRect);
-    m_CommandList->ClearDepthStencilView(framebuffer.Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-    m_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    //绑定DescriptorHeap
+    {
+        ID3D12DescriptorHeap* DescriptorHeap[] =
+        {
+            m_DescHeapCBV_SRV_UAV.Heap.Get()
+        };
+
+        m_CommandList->SetDescriptorHeaps(1, DescriptorHeap);
+    }
+
+    //绘制阴影
+    {
+        auto Viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, (FLOAT)framebuffer.Width, (FLOAT)framebuffer.Height };
+        auto ScissRect = CD3DX12_RECT{ 0, 0, (LONG)framebuffer.Width, (LONG)framebuffer.Height };
+
+        m_CommandList->RSSetViewports(1, &Viewport);
+        m_CommandList->RSSetScissorRects(1, &ScissRect);
+
+        m_CommandList->ClearDepthStencilView(m_ShadowMap->Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+        auto Read2Write = CD3DX12_RESOURCE_BARRIER::Transition(m_ShadowMap->ShadowMapTexture.texture.Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        m_CommandList->ResourceBarrier(1, &Read2Write);
+        
+        m_CommandList->OMSetRenderTargets(0,nullptr, false, &m_ShadowMap->Dsv.CpuHandle);
+
+        m_CommandList->SetGraphicsRootSignature(m_ShadowMap->m_ShadowSignature.Get());
+        m_CommandList->SetGraphicsRootDescriptorTable(0, ShadowMapCBV.Cbv.GpuHandle);
+
+        m_CommandList->SetPipelineState(m_ShadowMap->m_ShadowPipelineState.Get());
+        m_CommandList->IASetVertexBuffers(0, 1, &m_PbrModel.Vbv);
+        m_CommandList->IASetIndexBuffer(&m_PbrModel.Ibv);
+
+        m_CommandList->DrawIndexedInstanced(m_PbrModel.NumElements, 1, 0, 0, 0);
+
+        auto Write2Read = CD3DX12_RESOURCE_BARRIER::Transition(m_ShadowMap->ShadowMapTexture.texture.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+    }
+
+    //设置全局状态
+    {
+        auto Viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, (FLOAT)framebuffer.Width, (FLOAT)framebuffer.Height };
+        auto ScissRect = CD3DX12_RECT{ 0, 0, (LONG)framebuffer.Width, (LONG)framebuffer.Height };
+
+        m_CommandList->RSSetViewports(1, &Viewport);
+        m_CommandList->RSSetScissorRects(1, &ScissRect);
+
+        //准备渲染到Main FrameBuffer
+        float a[4] = { 1.0f,1.0f,1.0f,1.0f };
+        m_CommandList->OMSetRenderTargets(1, &framebuffer.Rtv.CpuHandle, false, &framebuffer.Dsv.CpuHandle);
+        m_CommandList->ClearRenderTargetView(framebuffer.Rtv.CpuHandle, a, 1, &ScissRect);
+        m_CommandList->ClearDepthStencilView(framebuffer.Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        m_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    }
 
     //绘制Skybox
     {
         m_CommandList->SetGraphicsRootSignature(m_SkyBoxRootSignature.Get());
         m_CommandList->SetGraphicsRootDescriptorTable(0, transformCBV.Cbv.GpuHandle);
         m_CommandList->SetGraphicsRootDescriptorTable(1, m_EnvTexture.Srv.GpuHandle);
-             
+
+        m_CommandList->SetPipelineState(m_SkyBoxPipelineState.Get());
+
         m_CommandList->IASetVertexBuffers(0, 1, &m_SkyBox.Vbv);
         m_CommandList->IASetIndexBuffer(&m_SkyBox.Ibv);
-             
+
         m_CommandList->DrawIndexedInstanced(m_SkyBox.NumElements, 1, 0, 0, 0);
     }
 
@@ -945,6 +987,7 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
 
         m_CommandList->DrawIndexedInstanced(m_PbrModel.NumElements, 1, 0, 0, 0);
     }
+
 
     if(framebuffer.Samples > 1)
     {

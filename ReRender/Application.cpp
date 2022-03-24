@@ -69,7 +69,7 @@
 			DeltaTime = CurrentTime - LastTime;
 			LastTime = CurrentTime;
 
-			mRenderer->Update();
+			mRenderer->Update(DeltaTime);
 			mRenderer->Render(m_window,DeltaTime);
             glfwPollEvents();
         }
