@@ -5,6 +5,7 @@
 #include <dxgi1_4.h>
 #include <wrl/client.h>
 
+#include "Debugger.h"
 #include "Descriptor.h"
 #include "MeshBuffer.h"
 #include "renderer.h"
@@ -117,6 +118,7 @@ private:
     ComPtr<ID3D12PipelineState> m_SkyBoxPipelineState;
 
     std::unique_ptr<ShadowMap> m_ShadowMap;
+    std::unique_ptr<Debugger> m_Debugger;
 
     UINT m_FrameIndex;
     ComPtr<ID3D12Fence> m_Fence;

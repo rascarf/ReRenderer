@@ -24,7 +24,7 @@ ShadowMap::ShadowMap(
     m_RootSignatureVersion(RootSignatureVersion)
 
 {
-    DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
+    // DescriptorHeapMark mark(m_DescHeapCBV_SRV_UAV);
 
     ShadowMapTexture = Texture::CreateTexture(m_Device, m_DescHeapCBV_SRV_UAV, Width, Height, 1, DXGI_FORMAT_R24G8_TYPELESS, 1,D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL);
 
@@ -66,20 +66,21 @@ ShadowMap::ShadowMap(
         psoDesc.PS = CD3DX12_SHADER_BYTECODE(ShadowMapPS.Get());
         psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
         psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+        psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
         psoDesc.RasterizerState.FrontCounterClockwise = true;
         psoDesc.RasterizerState.DepthBias = 100000;
         psoDesc.RasterizerState.DepthBiasClamp = 0.0f;
         psoDesc.RasterizerState.SlopeScaledDepthBias = 1.0f;
-        psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
         psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        psoDesc.NumRenderTargets = 1;
+        psoDesc.NumRenderTargets = 0;
         psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
         psoDesc.SampleDesc.Count = SamperCount;
         psoDesc.SampleMask = UINT_MAX;
         psoDesc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 
-        if (FAILED(m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_ShadowPipelineState)))) {
-            throw std::runtime_error("Failed to create graphics pipeline state for skybox");
+        if (FAILED(m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&m_ShadowPipelineState)))) 
+        {
+            throw std::runtime_error("Failed to create graphics pipeline state for ShadowMap");
         }
     }
 
@@ -97,6 +98,13 @@ ShadowMap::ShadowMap(
      dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
      dsvDesc.Texture2D.MipSlice = 0;
      m_Device->CreateDepthStencilView(ShadowMapTexture.texture.Get(), &dsvDesc, Dsv.CpuHandle);
+
+
+     Re::SetName(ShadowMapTexture.texture.Get(), std::string("ShadowMapTexture").c_str());
+     Re::SetName(m_ShadowPipelineState.Get(), std::string("ShadowMapPSO").c_str());
+     Re::SetName(m_ShadowSignature.Get(), std::string("ShadowMapRootSignature").c_str());
+     Re::SetName(m_DescHeapCBV_SRV_UAV.Heap.Get(), std::string("UAV_SAR_CBV").c_str());
+     Re::SetName(m_DescHeapDsv.Heap.Get(), std::string("DsvHeap").c_str());
 }
 
 void ShadowMap::UpdateShadowTransform(const float DeltaTime,Light InLight, ConstantBufferView ConstantBuffer)

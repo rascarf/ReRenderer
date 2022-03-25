@@ -44,7 +44,7 @@ Texture Texture::CreateTexture(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,Des
             &DefaultType,
             D3D12_HEAP_FLAG_NONE,
             &Desc,
-            D3D12_RESOURCE_STATE_COMMON,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
             &OptClear,
             IID_PPV_ARGS(&texture.texture))))
         {

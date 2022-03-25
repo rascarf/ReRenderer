@@ -85,3 +85,13 @@ MeshBuffer MeshBuffer::CreateMeshBuffer(std::function<void()>CallBack, ComPtr<ID
 
     return Buffer;
 }
+
+MeshBuffer MeshBuffer::CreateMeshBuffer(std::function<void()> CallBack, ComPtr<ID3D12GraphicsCommandList> m_CommandList,
+    ComPtr<ID3D12Device> m_Device, MeshData& meshData)
+{
+    auto GeneratorMesh = std::make_shared<Mesh>(meshData);
+
+    MeshBuffer buffer = CreateMeshBuffer(CallBack, m_CommandList, m_Device, GeneratorMesh);
+
+    return buffer;
+}

@@ -1,6 +1,11 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <d3d12.h>
+#include <dxgi1_4.h>
+#include <wrl/client.h>
+
+#define SetDebugName(Object,Name) Re::SetName(Object, std::string(#Name).c_str());
 
 class File
 {
@@ -41,5 +46,11 @@ public:
 	static std::wstring convertToUTF16(const std::string& str);
 
 };
+
+namespace  Re
+{
+    void SetName(ID3D12Object* pObj, const char* name);
+    void SetName(ID3D12Object* pObj, const std::string& name);
+}
 
 

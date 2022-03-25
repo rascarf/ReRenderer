@@ -19,5 +19,7 @@ public:
 
     static MeshBuffer CreateMeshBuffer(std::function<void()>CallBack,ComPtr<ID3D12GraphicsCommandList> m_CommandList,ComPtr<ID3D12Device>m_Device, std::shared_ptr<class Mesh>mesh);
 
+    static MeshBuffer CreateMeshBuffer(std::function<void()> CallBack, ComPtr<ID3D12GraphicsCommandList> m_CommandList,
+        ComPtr<ID3D12Device> m_Device, class MeshData& meshData);
 };
 

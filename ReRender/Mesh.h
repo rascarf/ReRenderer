@@ -36,6 +36,13 @@ struct Face
 };
 static_assert(sizeof(Face) == 3 * sizeof(uint32_t));
 
+//For Generator purpose
+struct MeshData
+{
+    std::vector<Vertex> Vertices;
+    std::vector<uint32_t> Indices32;
+};
+
 class Mesh
 {
 
@@ -46,6 +53,8 @@ public:
 
     const std::vector<Vertex>& Vertices() const { return m_Vertices; }
     const std::vector<Face>& Faces()const { return m_Faces; }
+
+    Mesh(MeshData& InMeshData);
 
 private:
 

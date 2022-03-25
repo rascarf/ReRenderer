@@ -15,7 +15,7 @@
 class RootSignature
 {
 public:
-    static Microsoft::WRL::ComPtr<ID3D12RootSignature> CreateRootSignature(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,D3D_ROOT_SIGNATURE_VERSION m_RootSignatureVersion,D3D12_VERSIONED_ROOT_SIGNATURE_DESC& Desc)
+    static Microsoft::WRL::ComPtr<ID3D12RootSignature> CreateRootSignature(Microsoft::WRL::ComPtr<ID3D12Device> m_Device,D3D_ROOT_SIGNATURE_VERSION &m_RootSignatureVersion,D3D12_VERSIONED_ROOT_SIGNATURE_DESC& Desc)
     {
         const D3D12_ROOT_SIGNATURE_FLAGS StandardFlags =
             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
@@ -32,7 +32,7 @@ public:
             break;
         }
 
-        Microsoft::WRL::ComPtr<ID3D12RootSignature> RootSignature;
+        Microsoft::WRL::ComPtr<ID3D12RootSignature> ReturnRootSignature;
         Microsoft::WRL::ComPtr<ID3DBlob> SignatureBlob, ErrorBlob;
 
         if (FAILED(D3DX12SerializeVersionedRootSignature(
@@ -48,11 +48,11 @@ public:
             0,
             SignatureBlob->GetBufferPointer(),
             SignatureBlob->GetBufferSize(),
-            IID_PPV_ARGS(&RootSignature))))
+            IID_PPV_ARGS(&ReturnRootSignature))))
         {
             throw std::runtime_error("Failed to create root signature");
         }
-        return RootSignature;
+        return ReturnRootSignature;
     }
 };
 

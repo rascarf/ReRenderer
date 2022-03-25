@@ -5,6 +5,7 @@ MeshData GeometryGenerator::CreateQuad(float x, float y, float w, float h, float
     MeshData meshData;
     meshData.Vertices.resize(4);
     meshData.Indices32.resize(6);
+    
 
     //直接在NDC Space创建
     meshData.Vertices[0] = Vertex(
@@ -16,7 +17,7 @@ MeshData GeometryGenerator::CreateQuad(float x, float y, float w, float h, float
     );
 
     meshData.Vertices[1] = Vertex(
-        Vec3(x, h, depth),
+        Vec3(x, y, depth),
         Vec3(0.0f, 0.0f, -1.0f),
         Vec3(1.0f, 0.0f, 0.0f),
         Vec3(0.0f, 1.0f, 1.0f),

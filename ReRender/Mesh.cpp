@@ -73,6 +73,28 @@ Mesh::Mesh(const aiMesh* Mesh)
     }
 }
 
+Mesh::Mesh(MeshData& InMeshData)
+{
+    m_Vertices.reserve(InMeshData.Vertices.size());
+    for (size_t i = 0; i < m_Vertices.capacity(); ++i)
+    {
+        m_Vertices.push_back(InMeshData.Vertices[i]);
+    }
+
+    m_Faces.reserve(InMeshData.Indices32.size() / 3);
+    for(size_t i = 0;i < m_Faces.capacity(); ++i)
+    {
+        size_t Index = i * 3;
+        Face face;
+        face.v1 = InMeshData.Indices32[Index + 0];
+        face.v2 = InMeshData.Indices32[Index + 1];
+        face.v3 = InMeshData.Indices32[Index + 2];
+
+        m_Faces.push_back(face);
+    }
+
+}
+
 std::shared_ptr<Mesh> Mesh::FromFile(const std::string& FileName)
 {
     LogStream::Initialize();

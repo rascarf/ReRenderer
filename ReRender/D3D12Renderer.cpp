@@ -18,6 +18,7 @@
 #include <glm/include/glm/gtc/matrix_transform.hpp>
 #include <glm/include/glm/gtx/euler_angles.hpp>
 
+#include "Debugger.h"
 #include "RootSignature.h"
 #include "Shader.h"
 #include "ShadowMap.h"
@@ -811,11 +812,18 @@ void D3D12Renderer::Setup(const ViewSettings& view, const SceneSettings& Scene)
     //创建ShadowMap
      m_ShadowMap = std::make_unique<ShadowMap>(m_Device,m_DescHeapCBV_SRV_UAV,m_DescHeapDsv,1024,1024,1, MeshInputLayout,DefaultSamplerDesc,m_RootSignatureVersion);
 
+     //Debug
+     m_Debugger = std::make_unique<Debugger>(Callback, m_Device, m_CommandList, MeshInputLayout, DefaultSamplerDesc, m_RootSignatureVersion, 1, m_ShadowMap->ShadowMapTexture, 0.0f, 0.0f, 0.5f, 0.5f, 0.0f);
+
     //创建128KB host-mappedBuffer在Uploadheap上来给shaderconstants
     m_constantBuffer = UploadBuffer::CreateUploadBuffer(m_Device,128 * 1024); // 128 KB
 
+    SetDebugName(m_constantBuffer.Buffer.Get(),UploadBuffer)
+
     //配置每帧的Resource
     {
+        DescriptorHeapMark Mark(m_DescHeapCBV_SRV_UAV);
+
         std::vector<D3D12_RESOURCE_BARRIER> barriers{ NumFrames };
         for(UINT FrameIndex = 0 ; FrameIndex < NumFrames ; ++FrameIndex)
         {
@@ -919,29 +927,31 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
 
     //绘制阴影
     {
+        m_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         auto Viewport = CD3DX12_VIEWPORT{ 0.0f, 0.0f, (FLOAT)framebuffer.Width, (FLOAT)framebuffer.Height };
         auto ScissRect = CD3DX12_RECT{ 0, 0, (LONG)framebuffer.Width, (LONG)framebuffer.Height };
-
+        //
         m_CommandList->RSSetViewports(1, &Viewport);
         m_CommandList->RSSetScissorRects(1, &ScissRect);
-
-        m_CommandList->ClearDepthStencilView(m_ShadowMap->Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
+        //
         auto Read2Write = CD3DX12_RESOURCE_BARRIER::Transition(m_ShadowMap->ShadowMapTexture.texture.Get(), D3D12_RESOURCE_STATE_GENERIC_READ, D3D12_RESOURCE_STATE_DEPTH_WRITE);
         m_CommandList->ResourceBarrier(1, &Read2Write);
-        
+        //
+        m_CommandList->ClearDepthStencilView(m_ShadowMap->Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0,nullptr);
+        //
         m_CommandList->OMSetRenderTargets(0,nullptr, false, &m_ShadowMap->Dsv.CpuHandle);
-
+        //
         m_CommandList->SetGraphicsRootSignature(m_ShadowMap->m_ShadowSignature.Get());
         m_CommandList->SetGraphicsRootDescriptorTable(0, ShadowMapCBV.Cbv.GpuHandle);
-
+        //
         m_CommandList->SetPipelineState(m_ShadowMap->m_ShadowPipelineState.Get());
         m_CommandList->IASetVertexBuffers(0, 1, &m_PbrModel.Vbv);
         m_CommandList->IASetIndexBuffer(&m_PbrModel.Ibv);
-
+        //
         m_CommandList->DrawIndexedInstanced(m_PbrModel.NumElements, 1, 0, 0, 0);
-
+        //
         auto Write2Read = CD3DX12_RESOURCE_BARRIER::Transition(m_ShadowMap->ShadowMapTexture.texture.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_GENERIC_READ);
+        m_CommandList->ResourceBarrier(1, &Write2Read);
     }
 
     //设置全局状态
@@ -952,12 +962,13 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
         m_CommandList->RSSetViewports(1, &Viewport);
         m_CommandList->RSSetScissorRects(1, &ScissRect);
 
-        //准备渲染到Main FrameBuffer
-        float a[4] = { 1.0f,1.0f,1.0f,1.0f };
+        //准备渲染到FrameBuffer
+        float a[4] = { 0.0f,0.0f,0.0f,0.0f };
+
         m_CommandList->OMSetRenderTargets(1, &framebuffer.Rtv.CpuHandle, false, &framebuffer.Dsv.CpuHandle);
+
         m_CommandList->ClearRenderTargetView(framebuffer.Rtv.CpuHandle, a, 1, &ScissRect);
         m_CommandList->ClearDepthStencilView(framebuffer.Dsv.CpuHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-        m_CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     }
 
     //绘制Skybox
@@ -988,6 +999,7 @@ void D3D12Renderer::Render(GLFWwindow* Window,const float DeltaTime)
         m_CommandList->DrawIndexedInstanced(m_PbrModel.NumElements, 1, 0, 0, 0);
     }
 
+    m_Debugger->Draw();
 
     if(framebuffer.Samples > 1)
     {
